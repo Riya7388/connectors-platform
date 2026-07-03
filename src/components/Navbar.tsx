@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Sun, Moon, Menu, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Sun, Moon, Menu, X, LogOut, User } from "lucide-react";
+import { supabase } from "../supabase";
 
 interface NavbarProps {
   activeTab: string;
@@ -15,6 +16,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   setDarkMode,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setActiveTab("home");
+  };
 
   const navLinks = [
     { id: "home", label: "Home" },
@@ -71,19 +92,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
           
-          <button 
-            onClick={() => setActiveTab("become-mentor")}
-            className="hidden md:block text-sm font-semibold text-on-surface hover:text-primary transition-colors"
-          >
-            Login
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab("become-mentor")}
-            className="bg-primary text-on-primary-fixed hover:scale-105 active:scale-95 px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300"
-          >
-            Sign-up
-          </button>
+          {user ? (
+            <div className="hidden md:flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-on-surface bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant/30">
+                <User size={16} className="text-primary" />
+                <span className="truncate max-w-[120px]">{user.email?.split('@')[0]}</span>
+              </div>
+              <button 
+                onClick={handleSignOut}
+                className="text-sm font-semibold text-red-500 hover:text-red-600 transition-colors flex items-center gap-1"
+              >
+                <LogOut size={16} /> Sign out
+              </button>
+            </div>
+          ) : (
+            <>
+              <button 
+                onClick={() => setActiveTab("auth")}
+                className="hidden md:block text-sm font-semibold text-on-surface hover:text-primary transition-colors"
+              >
+                Login
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab("auth")}
+                className="bg-primary text-on-primary-fixed hover:scale-105 active:scale-95 px-5 py-2 rounded-full font-semibold text-sm transition-all duration-300 hidden md:block"
+              >
+                Sign-up
+              </button>
+            </>
+          )}
 
           {/* Mobile Menu Toggle */}
           <button
@@ -119,25 +157,45 @@ export const Navbar: React.FC<NavbarProps> = ({
             );
           })}
           <hr className="border-outline-variant/20 dark:border-outline/10 my-2" />
-          <div className="flex items-center gap-4 justify-between pt-2">
-            <button 
-              onClick={() => {
-                setActiveTab("become-mentor");
-                setMobileMenuOpen(false);
-              }}
-              className="text-sm font-semibold text-on-surface hover:text-primary transition-colors"
-            >
-              Login
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab("become-mentor");
-                setMobileMenuOpen(false);
-              }}
-              className="bg-primary text-on-primary-fixed w-full max-w-[200px] text-center py-2.5 rounded-full font-semibold text-sm transition-all duration-300"
-            >
-              Sign-up
-            </button>
+          <div className="flex flex-col gap-4 pt-2">
+            {user ? (
+              <>
+                <div className="flex items-center gap-2 text-sm font-medium text-on-surface bg-surface-container-low px-3 py-2 rounded-lg border border-outline-variant/30 justify-center">
+                  <User size={16} className="text-primary" />
+                  <span className="truncate">{user.email}</span>
+                </div>
+                <button 
+                  onClick={() => {
+                    handleSignOut();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="bg-red-500/10 text-red-500 w-full text-center py-2.5 rounded-full font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <LogOut size={16} /> Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => {
+                    setActiveTab("auth");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-sm font-semibold text-on-surface hover:text-primary transition-colors text-center w-full py-2 border border-outline-variant/20 rounded-full"
+                >
+                  Login
+                </button>
+                <button 
+                  onClick={() => {
+                    setActiveTab("auth");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="bg-primary text-on-primary-fixed w-full text-center py-2.5 rounded-full font-semibold text-sm transition-all duration-300"
+                >
+                  Sign-up
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

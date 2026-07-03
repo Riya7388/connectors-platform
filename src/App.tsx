@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
+import { MentorGenieChat } from "./components/MentorGenieChat";
 import { Home } from "./pages/Home";
 import { Compare } from "./pages/Compare";
 import { FindMentor } from "./pages/FindMentor";
 import { BecomeMentor } from "./pages/BecomeMentor";
+import { Auth } from "./pages/Auth";
 import "./App.css";
 
 function App() {
@@ -31,6 +33,8 @@ function App() {
         return <FindMentor />;
       case "become-mentor":
         return <BecomeMentor />;
+      case "auth":
+        return <Auth setActiveTab={setActiveTab} />;
       default:
         return <Home setActiveTab={setActiveTab} />;
     }
@@ -53,6 +57,9 @@ function App() {
 
       {/* Footer layout */}
       <Footer setActiveTab={setActiveTab} />
+
+      {/* AI Assistant Chatbot */}
+      <MentorGenieChat />
     </div>
   );
 }

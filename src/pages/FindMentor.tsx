@@ -1,232 +1,214 @@
-import React, { useState, useMemo } from "react";
-import { Search, SlidersHorizontal, ShieldCheck, Star, Calendar, GraduationCap, X } from "lucide-react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
+import {
+  Search,
+  ShieldCheck,
+  Calendar,
+  X,
+} from "lucide-react";
+import { supabase } from "../supabase";
 
+/* -------------------------------------------------
+   Types
+------------------------------------------------- */
 interface Mentor {
   id: string;
+  user_id: string | null;
+  college_id: string | null;
   name: string;
+  email: string;
   college: string;
-  collegeType: "IIT" | "NIT" | "IIIT";
   branch: string;
-  rating: number;
-  reviewsCount: number;
-  rankTag?: string;
+  year: number;
+  bio: string;
+  experience: string;
+  linkedin: string;
+  price: number;
+  image_url: string;
   verified: boolean;
-  avatar: string;
-  hourlyRate: number;
-  skills: string[];
 }
 
-const mockMentors: Mentor[] = [
-  {
-    id: "1",
-    name: "Rohan Sharma",
-    college: "IIT Bombay",
-    collegeType: "IIT",
-    branch: "CSE",
-    rating: 4.9,
-    reviewsCount: 48,
-    rankTag: "JEE Adv Rank 142",
-    verified: true,
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuB7lv558cLDBnFtlOLAioxpEKzqMsyPmnIjSuv_3CVk8khpAZ_DifLrch0nDp0O9MUQMr9pw9RG2jmvr_yZmtGRSs6wx-qIXtTw38iQBZc1dByPP4jp7QMezg49AvcmlT385DfyWCbc8qf1NE9GQ4wPXxSQ-ywm6yDmMADUtOhYlzOx9wrwJ4JwCygPQpx5faFfrQ39BHRWqokxzmNN1CHZAXpUTkJW-nlbjxjkFMQWl1jDfDxF6P7TR_7VC1rS8mSaLm1a1nlCv6A",
-    hourlyRate: 15,
-    skills: ["AI/ML", "Competitive Programming", "Algorithms"],
-  },
-  {
-    id: "2",
-    name: "Ishani Verma",
-    college: "NIT Trichy",
-    collegeType: "NIT",
-    branch: "Mechanical",
-    rating: 4.8,
-    reviewsCount: 36,
-    verified: true,
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuBUOUmwow5NMiB30r9-SPoHr2CpRkVOopEbytNCDDxPyWYvXttGvu7VHlEg2d8Sd5mgePmCYUaRNLtioz0LlNo9xMOtuoeWSiKdrfhVDlAntXUE13VQh-QAXlH9AyDjmssNnA_VG-CdIDI8BNns7CLrMMVt87yq8Ke5tAPRs8fDHGJkLZM44GnEKZZ-08UoxHVqeGXyx3u07spCDxI_GxtAAuwPDE-cCfAr-FVP3dZqsBzwdWaS6h2vQv7BhCfrIZfivUEpv2jawrc",
-    hourlyRate: 12,
-    skills: ["CAD/CAM", "Robotics", "Thermo-fluids"],
-  },
-  {
-    id: "3",
-    name: "Aman Gupta",
-    college: "IIIT Allahabad",
-    collegeType: "IIIT",
-    branch: "IT",
-    rating: 4.7,
-    reviewsCount: 22,
-    rankTag: "JEE Main 99.8%tile",
-    verified: true,
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCShZCqSHxd2ll50B0RCnGsXQzGKWy-60z0tBU8sIZvCuvVjqJ8Rx-cVmoH1YGidh-ldpsYTKNmQlBEC1uFP7L5uWYEYGc6173bsvaRRC2V9TNHoQ4cgcvctpMkIJ8Vh-5_QZ9_JiUCpnaKVBPiY2IjAnKDeB1AsQaiv9r0Bsi6o9T8l_i1EsLapu20_2CYcJlrRC24PcCz_4H5UunGMHAQJ5diCPOAHpcMmkRMnEAs46zolql7pZLRyl-K_FL3aWTO4JWXD5L5IHY",
-    hourlyRate: 10,
-    skills: ["Web Dev", "React", "NodeJS"],
-  },
-  {
-    id: "4",
-    name: "Priya Das",
-    college: "IIT Delhi",
-    collegeType: "IIT",
-    branch: "EE",
-    rating: 4.9,
-    reviewsCount: 41,
-    verified: true,
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuBUOUmwow5NMiB30r9-SPoHr2CpRkVOopEbytNCDDxPyWYvXttGvu7VHlEg2d8Sd5mgePmCYUaRNLtioz0LlNo9xMOtuoeWSiKdrfhVDlAntXUE13VQh-QAXlH9AyDjmssNnA_VG-CdIDI8BNns7CLrMMVt87yq8Ke5tAPRs8fDHGJkLZM44GnEKZZ-08UoxHVqeGXyx3u07spCDxI_GxtAAuwPDE-cCfAr-FVP3dZqsBzwdWaS6h2vQv7BhCfrIZfivUEpv2jawrc",
-    hourlyRate: 18,
-    skills: ["VLSI Design", "Control Systems", "IoT"],
-  },
-  {
-    id: "5",
-    name: "Vikram Sen",
-    college: "NIT Surathkal",
-    collegeType: "NIT",
-    branch: "CSE",
-    rating: 4.6,
-    reviewsCount: 15,
-    verified: false,
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCShZCqSHxd2ll50B0RCnGsXQzGKWy-60z0tBU8sIZvCuvVjqJ8Rx-cVmoH1YGidh-ldpsYTKNmQlBEC1uFP7L5uWYEYGc6173bsvaRRC2V9TNHoQ4cgcvctpMkIJ8Vh-5_QZ9_JiUCpnaKVBPiY2IjAnKDeB1AsQaiv9r0Bsi6o9T8l_i1EsLapu20_2CYcJlrRC24PcCz_4H5UunGMHAQJ5diCPOAHpcMmkRMnEAs46zolql7pZLRyl-K_FL3aWTO4JWXD5L5IHY",
-    hourlyRate: 8,
-    skills: ["DBMS", "Linux Kernels", "Cybersecurity"],
-  }
-];
+/* -------------------------------------------------
+   Helper Components
+------------------------------------------------- */
+const LoadingSkeleton = () => (
+  <div className="animate-pulse space-y-4">
+    <div className="h-48 w-full rounded-xl bg-surface-container-high" />
+    <div className="h-4 w-3/4 rounded bg-surface-container-high" />
+    <div className="h-4 w-1/2 rounded bg-surface-container-high" />
+  </div>
+);
 
-export const FindMentor: React.FC = () => {
+const ErrorCard: React.FC<{ message: string }> = ({ message }) => (
+  <div className="flex flex-col items-center justify-center gap-4 rounded-2xl p-8 glass-card border border-primary/25">
+    <ShieldCheck className="text-primary" size={48} />
+    <p className="text-lg font-semibold text-on-surface">{message}</p>
+  </div>
+);
+
+const EmptyState = ({
+  onReset,
+}: {
+  onReset: () => void;
+}) => (
+  <div className="flex flex-col items-center gap-6 py-16">
+    <img
+      src="https://img.icons8.com/ios-filled/200/000000/empty-box.png"
+      alt="Empty"
+      className="w-32 h-32 opacity-70"
+    />
+    <p className="text-base font-medium text-on-surface-variant">
+      No mentors match your criteria.
+    </p>
+    <button
+      onClick={onReset}
+      className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+    >
+      Reset Filters
+    </button>
+  </div>
+);
+
+/* -------------------------------------------------
+   Main Component
+------------------------------------------------- */
+const FindMentor: React.FC = () => {
+  const [mentors, setMentors] = useState<Mentor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [selectedCollegeTypes, setSelectedCollegeTypes] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [showBookingModal, setShowBookingModal] = useState<Mentor | null>(null);
+  const [bookingMentor, setBookingMentor] = useState<Mentor | null>(null);
 
-  const branches = ["CSE", "Mechanical", "AI/ML", "IT", "EE"];
-  const collegeTypes = ["IIT", "NIT", "IIIT"];
+  // Future‑ready pagination state (UI not rendered yet)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12; // can be adjusted later
 
-  const handleBranchToggle = (branch: string) => {
+  /* ------------------- Data Fetch ------------------- */
+  useEffect(() => {
+    const fetchMentors = async () => {
+      setLoading(true);
+      setError(null);
+
+      const { data, error } = await supabase
+        .from("mentors")
+        .select("*")
+        .order("id", { ascending: true });
+
+      if (error) {
+        setError("Failed to load mentors. Please try again later.");
+        setLoading(false);
+        return;
+      }
+
+      setMentors(data as Mentor[]);
+      setLoading(false);
+    };
+
+    fetchMentors();
+  }, []);
+
+  /* ------------------- Dynamic Branch List ------------------- */
+  const allBranches = useMemo(() => {
+    const branchSet = new Set<string>();
+    mentors.forEach((m) => branchSet.add(m.branch));
+    return Array.from(branchSet).sort();
+  }, [mentors]);
+
+  const toggleBranch = useCallback((branch: string) => {
     setSelectedBranches((prev) =>
       prev.includes(branch) ? prev.filter((b) => b !== branch) : [...prev, branch]
     );
-  };
-
-  const handleCollegeTypeToggle = (type: string) => {
-    setSelectedCollegeTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  };
+  }, []);
 
   const filteredMentors = useMemo(() => {
-    return mockMentors.filter((mentor) => {
-      // Search match
-      const searchMatch =
-        mentor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        mentor.college.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        mentor.branch.toLowerCase().includes(searchTerm.toLowerCase());
+    // Apply pagination after all other filters for future‑ready handling
+    const filtered = mentors.filter((m) => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        m.name.toLowerCase().includes(term) ||
+        m.college.toLowerCase().includes(term) ||
+        m.branch.toLowerCase().includes(term);
 
-      // Branch match
-      const branchMatch =
-        selectedBranches.length === 0 || selectedBranches.includes(mentor.branch) || 
-        (selectedBranches.includes("AI/ML") && mentor.skills.includes("AI/ML"));
+      const matchesBranch =
+        selectedBranches.length === 0 || selectedBranches.includes(m.branch);
 
-      // College type match
-      const collegeTypeMatch =
-        selectedCollegeTypes.length === 0 || selectedCollegeTypes.includes(mentor.collegeType);
+      const matchesVerified = !verifiedOnly || m.verified;
 
-      // Rating match
-      const ratingMatch = minRating === null || mentor.rating >= minRating;
-
-      // Verified match
-      const verifiedMatch = !verifiedOnly || mentor.verified;
-
-      return searchMatch && branchMatch && collegeTypeMatch && ratingMatch && verifiedMatch;
+      return matchesSearch && matchesBranch && matchesVerified;
     });
-  }, [searchTerm, selectedBranches, selectedCollegeTypes, minRating, verifiedOnly]);
 
+    // Pagination slice (will be used when pagination UI is added)
+    const startIdx = (currentPage - 1) * pageSize;
+    return filtered.slice(startIdx, startIdx + pageSize);
+  }, [mentors, searchTerm, selectedBranches, verifiedOnly, currentPage]);
+
+  const resetAll = () => {
+    setSearchTerm("");
+    setSelectedBranches([]);
+    setVerifiedOnly(false);
+  };
+
+  /* ------------------- UI ------------------- */
   return (
-    <div className="relative min-h-screen py-10">
-      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row gap-8">
-        
-        {/* Sidebar Filters */}
-        <aside className="w-full md:w-80 shrink-0 space-y-6">
-          <div className="glass-card rounded-2xl p-6 sticky top-24 border border-white/10 space-y-6">
+    <div className="min-h-screen bg-background py-10">
+      <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row gap-8">
+        {/* ---- Sidebar ---- */}
+        <aside className="w-full lg:w-72 flex-shrink-0">
+          <div className="glass-card rounded-2xl p-6 sticky top-24 space-y-6 border border-white/10">
             <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-xl">Filters</h3>
-              <SlidersHorizontal className="text-primary" size={18} />
+              <h3 className="font-bold text-xl">Filters</h3>
+              <Search className="text-primary" size={18} />
             </div>
 
-            {/* Verified Only Toggle */}
-            <div className="flex items-center justify-between pb-4 border-b border-outline-variant/10">
-              <span className="text-sm font-semibold text-on-surface">Verified Only</span>
+            {/* Verified Only */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-on-surface-variant">
+                Verified Only
+              </span>
               <button
                 type="button"
-                onClick={() => setVerifiedOnly(!verifiedOnly)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                onClick={() => setVerifiedOnly((v) => !v)}
+                className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${
                   verifiedOnly ? "bg-primary" : "bg-surface-container-highest"
                 }`}
+                aria-checked={verifiedOnly}
+                role="switch"
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
                     verifiedOnly ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
               </button>
             </div>
 
-            {/* Branch Filters */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Branches</label>
+            {/* Branches (dynamic) */}
+            <div>
+              <label className="block mb-2 text-xs font-semibold uppercase text-on-surface-variant">
+                Branch
+              </label>
               <div className="flex flex-wrap gap-2">
-                {branches.map((b) => {
-                  const isSelected = selectedBranches.includes(b);
+                {allBranches.map((branch) => {
+                  const selected = selectedBranches.includes(branch);
                   return (
                     <button
-                      key={b}
-                      onClick={() => handleBranchToggle(b)}
-                      className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                        isSelected
-                          ? "bg-secondary-container/30 border-secondary text-secondary-fixed-dim"
-                          : "bg-surface-container-high border-white/5 text-on-surface-variant hover:border-primary/50"
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* College Types */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">College Type</label>
-              <div className="space-y-2">
-                {collegeTypes.map((type) => {
-                  const isChecked = selectedCollegeTypes.includes(type);
-                  return (
-                    <label key={type} className="flex items-center gap-3 cursor-pointer group text-sm">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleCollegeTypeToggle(type)}
-                        className="rounded border-outline-variant/30 text-primary focus:ring-primary/50 bg-surface-container-low w-4 h-4"
-                      />
-                      <span className="font-semibold text-on-surface-variant group-hover:text-primary transition-colors">{type}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Rating Filter */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Rating</label>
-              <div className="flex gap-2">
-                {[4.5, 4.0, 3.5].map((val) => {
-                  const isSelected = minRating === val;
-                  return (
-                    <button
-                      key={val}
-                      onClick={() => setMinRating(isSelected ? null : val)}
-                      className={`text-xs px-3 py-1.5 rounded-full font-semibold border flex items-center gap-1 transition-all ${
-                        isSelected
+                      key={branch}
+                      type="button"
+                      onClick={() => toggleBranch(branch)}
+                      className={`px-3 py-1 text-xs rounded-full border transition ${
+                        selected
                           ? "bg-primary/20 border-primary text-primary"
-                          : "bg-surface-container-high border-white/5 text-on-surface-variant hover:border-primary/50"
+                          : "bg-surface-container-high border-white/10 text-on-surface-variant hover:border-primary/30"
                       }`}
                     >
-                      {val}+ <Star size={12} className="fill-current" />
+                      {branch}
                     </button>
                   );
                 })}
@@ -235,135 +217,201 @@ export const FindMentor: React.FC = () => {
           </div>
         </aside>
 
-        {/* Directory Grid */}
+        {/* ---- Main Content ---- */}
         <main className="flex-1 space-y-6">
-          {/* Search Header */}
-          <div className="glass-card p-4 rounded-2xl flex items-center gap-3 border border-white/10">
+          {/* Search Bar */}
+          <div className="glass-card flex items-center gap-3 rounded-2xl p-4 border border-white/10">
             <Search className="text-on-surface-variant" size={20} />
             <input
+              type="text"
+              placeholder="Search mentors by name, college, or branch..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none focus:ring-0 w-full text-on-surface text-sm outline-none placeholder-on-surface-variant/50"
-              placeholder="Search mentors by name, college, major, skills..."
-              type="text"
+              className="flex-1 bg-transparent text-on-surface placeholder-on-surface-variant/50 focus:outline-none"
             />
           </div>
 
-          {/* Mentors Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredMentors.map((mentor) => (
-              <div key={mentor.id} className="glass-card p-6 rounded-2xl border border-white/5 space-y-4 flex flex-col justify-between hover:-translate-y-0.5 transition-all">
-                <div className="space-y-4">
-                  {/* Avatar and Header */}
-                  <div className="flex gap-4 items-start">
+          {/* Loading */}
+          {loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <LoadingSkeleton key={i} />
+              ))}
+            </div>
+          )}
+
+          {/* Error */}
+          {error && <ErrorCard message={error} />}
+
+          {/* Mentor Grid */}
+          {!loading && !error && filteredMentors.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredMentors.map((mentor) => (
+                <div
+                  key={mentor.id}
+                  className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all"
+                >
+                  {/* Header */}
+                  <div className="flex gap-4">
                     <img
-                      src={mentor.avatar}
+                      src={
+                        mentor.image_url ||
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          mentor.name
+                        )}`
+                      }
                       alt={mentor.name}
-                      className="w-14 h-14 rounded-full border-2 border-primary object-cover"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        target.src =
+                          "https://ui-avatars.com/api/?size=128&background=cccccc&color=ffffff&name=" +
+                          encodeURIComponent(mentor.name);
+                      }}
+                      className="h-14 w-14 rounded-full border-2 border-primary object-cover"
                     />
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-base text-on-surface">{mentor.name}</h4>
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-bold text-on-surface">
+                          {mentor.name}
+                        </h4>
                         {mentor.verified && (
-                          <span title="Verified Campus Mentor">
-                            <ShieldCheck size={16} className="text-primary fill-primary/10" />
-                          </span>
+                          <ShieldCheck
+                            size={16}
+                            className="text-primary fill-primary/10"
+                          />
                         )}
                       </div>
-                      <p className="text-xs text-on-surface-variant font-semibold">
+                      <p className="text-xs text-on-surface-variant">
                         {mentor.college} • {mentor.branch}
                       </p>
-                      <div className="flex items-center gap-1 text-xs text-primary font-bold">
-                        <Star size={12} className="fill-primary" /> {mentor.rating}
-                        <span className="text-on-surface-variant/60 font-medium">({mentor.reviewsCount} reviews)</span>
-                      </div>
+                      <p className="text-xs text-primary">
+                        {mentor.year} Year
+                      </p>
                     </div>
                   </div>
 
-                  {/* Skills/Tags */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {mentor.skills.map((skill) => (
-                      <span key={skill} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-container/10 text-secondary-fixed-dim border border-secondary/15">
-                        {skill}
-                      </span>
-                    ))}
-                    {mentor.rankTag && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/15">
-                        {mentor.rankTag}
+                  {/* Tags */}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-primary/10 text-primary">
+                      {mentor.branch}
+                    </span>
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-secondary-container/20 text-secondary">
+                      {mentor.experience}
+                    </span>
+                    {mentor.verified && (
+                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-green-500/20 text-green-400">
+                        Verified
                       </span>
                     )}
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-surface-container-high text-on-surface-variant">
+                      New Mentor
+                    </span>
+                  </div>
+
+                  {/* Bio */}
+                  <p className="mt-3 text-sm text-on-surface-variant line-clamp-3">
+                    {mentor.bio}
+                  </p>
+
+                  {/* Footer */}
+                  <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-on-surface-variant">Rate</p>
+                      <p className="text-base font-extrabold text-on-surface">
+                        ₹{mentor.price}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {/* LinkedIn Button */}
+                      {mentor.linkedin && (
+                        <a
+                          href={mentor.linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full hover:bg-blue-700 transition"
+                        >
+                          LinkedIn
+                        </a>
+                      )}
+                      {/* Connect Call */}
+                      <button
+                        onClick={() => setBookingMentor(mentor)}
+                        className="brand-gradient-bg hover:scale-105 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                      >
+                        Connect Call
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Rates & Actions */}
-                <div className="pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-on-surface-variant">Rate</p>
-                    <p className="text-base font-extrabold text-on-surface">${mentor.hourlyRate}/hr</p>
-                  </div>
-                  <button
-                    onClick={() => setShowBookingModal(mentor)}
-                    className="brand-gradient-bg hover:scale-105 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
-                  >
-                    Connect Call
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredMentors.length === 0 && (
-            <div className="text-center py-16 space-y-4">
-              <GraduationCap className="mx-auto text-on-surface-variant/40" size={48} />
-              <p className="text-on-surface-variant text-base font-semibold">No mentors match your selected filters.</p>
-              <button 
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedBranches([]);
-                  setSelectedCollegeTypes([]);
-                  setMinRating(null);
-                  setVerifiedOnly(false);
-                }}
-                className="text-primary text-sm font-bold underline"
-              >
-                Reset all filters
-              </button>
+              ))}
             </div>
+          )}
+
+          {/* Empty */}
+          {!loading && !error && filteredMentors.length === 0 && (
+            <EmptyState onReset={resetAll} />
           )}
         </main>
       </div>
 
-      {/* Booking Mock Modal */}
-      {showBookingModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card max-w-md w-full p-6 rounded-2xl border border-primary/25 space-y-4 shadow-2xl relative">
-            <button 
-              onClick={() => setShowBookingModal(null)}
-              className="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors"
+      {/* ---- Booking Modal ---- */}
+      {bookingMentor && (
+        <div className="fixed inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50 p-4">
+          <div className="glass-card w-full max-w-md rounded-2xl p-6 border border-primary/25 space-y-6 relative">
+            <button
+              type="button"
+              onClick={() => setBookingMentor(null)}
+              className="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition"
             >
               <X size={20} />
             </button>
-            <div className="flex gap-4 items-center">
-              <img 
-                src={showBookingModal.avatar} 
-                alt={showBookingModal.name} 
-                className="w-12 h-12 rounded-full border-2 border-primary object-cover"
+
+            <div className="flex items-center gap-4">
+              <img
+                src={bookingMentor.image_url}
+                alt={bookingMentor.name}
+                className="h-12 w-12 rounded-full border-2 border-primary object-cover"
               />
               <div>
-                <h4 className="font-bold text-lg">{showBookingModal.name}</h4>
-                <p className="text-xs text-on-surface-variant">{showBookingModal.college} • {showBookingModal.branch}</p>
+                <h4 className="font-bold text-lg">{bookingMentor.name}</h4>
+                <p className="text-sm text-on-surface-variant">
+                  {bookingMentor.college} • {bookingMentor.branch}
+                </p>
+                <p className="text-sm text-primary">
+                  {bookingMentor.year} Year
+                </p>
               </div>
             </div>
+
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-on-surface flex items-center gap-1.5">
-                <Calendar size={16} className="text-primary" /> Select Call Slot
+              <p className="font-semibold text-on-surface flex items-center gap-1">
+                <Calendar size={16} className="text-primary" />
+                Session Price: <span className="ml-1 font-bold">₹{bookingMentor.price}</span>
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => { alert("Slot booked!"); setShowBookingModal(null); }} className="bg-surface-container-high hover:bg-primary hover:text-on-primary-fixed border border-white/5 rounded-lg py-2 text-xs font-semibold transition-all">Tomorrow, 4 PM</button>
-                <button onClick={() => { alert("Slot booked!"); setShowBookingModal(null); }} className="bg-surface-container-high hover:bg-primary hover:text-on-primary-fixed border border-white/5 rounded-lg py-2 text-xs font-semibold transition-all">Tomorrow, 6 PM</button>
-                <button onClick={() => { alert("Slot booked!"); setShowBookingModal(null); }} className="bg-surface-container-high hover:bg-primary hover:text-on-primary-fixed border border-white/5 rounded-lg py-2 text-xs font-semibold transition-all">Friday, 10 AM</button>
-                <button onClick={() => { alert("Slot booked!"); setShowBookingModal(null); }} className="bg-surface-container-high hover:bg-primary hover:text-on-primary-fixed border border-white/5 rounded-lg py-2 text-xs font-semibold transition-all">Friday, 2 PM</button>
-              </div>
+              <p className="text-sm text-on-surface-variant line-clamp-3">
+                {bookingMentor.bio}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* TODO: Integrate Razorpay here */}
+              <button
+                type="button"
+                className="w-full py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                onClick={() => {
+                  // Placeholder for future Razorpay integration
+                  console.warn("Razorpay integration pending");
+                }}
+              >
+                Pay & Book Session
+              </button>
+              <button
+                type="button"
+                className="w-full py-2 px-4 border border-primary text-primary rounded-lg hover:bg-primary/10 transition"
+                onClick={() => setBookingMentor(null)}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -371,3 +419,5 @@ export const FindMentor: React.FC = () => {
     </div>
   );
 };
+
+export { FindMentor };

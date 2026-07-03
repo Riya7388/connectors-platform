@@ -1,0 +1,2 @@
+[functions.mentor-genie-chat]
+verify_jwt = false
