@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Sparkles, Star, BrainCircuit, BarChart3, School, MapPin, IndianRupee, Flame, Download, Users } from "lucide-react";
+import { Sparkles, Star, BrainCircuit, BarChart3, School, MapPin, IndianRupee, Flame, Download, Users, ExternalLink, CheckCircle, Info, AlertCircle } from "lucide-react";
 import { supabase } from "../supabase";
 // @ts-ignore
 import html2pdf from "html2pdf.js";
@@ -11,8 +11,30 @@ interface College {
   avg_placement_package_lpa: number;
   total_fees_4_years_inr: number;
   city: string;
+  city: string;
   state: string;
+  data_confidence?: 'high' | 'medium-high' | 'medium' | 'low-medium' | 'low' | null;
+  official_fee_link?: string | null;
 }
+
+const ConfidenceIndicator: React.FC<{ confidence: College['data_confidence'] }> = ({ confidence }) => {
+  if (!confidence) return null;
+  
+  if (confidence === 'high' || confidence === 'medium-high') {
+    return <CheckCircle size={14} className="text-green-500/70 inline-block ml-1" />;
+  }
+  if (confidence === 'medium') {
+    return <Info size={14} className="text-gray-400 inline-block ml-1" />;
+  }
+  return (
+    <span className="group relative inline-block ml-1">
+      <AlertCircle size={14} className="text-yellow-500/80 cursor-help" />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-surface-container-highest text-on-surface text-xs rounded shadow-lg z-50">
+        This figure is a best estimate from public sources — click 'Verify official fees' to confirm exact numbers.
+      </div>
+    </span>
+  );
+};
 
 export const Compare: React.FC = () => {
   const [colleges, setColleges] = useState<College[]>([]);
@@ -36,7 +58,9 @@ export const Compare: React.FC = () => {
   useEffect(() => {
     const fetchColleges = async () => {
       const { data, error } = await supabase.from('colleges').select('*').order('name');
-      if (data && !error) {
+      if (error) {
+        console.error("Supabase fetch error:", error);
+      } else if (data) {
         setColleges(data);
       }
     };
@@ -52,13 +76,15 @@ export const Compare: React.FC = () => {
       setError("Please select both colleges.");
       return;
     }
-    if (college1Name === college2Name) {
+    if (college1Name.toLowerCase().trim() === college2Name.toLowerCase().trim()) {
       setError("Please select two different colleges to compare.");
       return;
     }
 
-    const c1 = colleges.find(c => c.name === college1Name);
-    const c2 = colleges.find(c => c.name === college2Name);
+    const search1 = college1Name.toLowerCase().trim();
+    const search2 = college2Name.toLowerCase().trim();
+    const c1 = colleges.find(c => c.name.toLowerCase().trim() === search1);
+    const c2 = colleges.find(c => c.name.toLowerCase().trim() === search2);
 
     if (!c1 || !c2) {
       setError("We're still gathering verified data for one or both of these colleges. Check back soon!");
@@ -284,8 +310,14 @@ export const Compare: React.FC = () => {
                         <td className="p-4 font-semibold text-on-surface flex items-center gap-2">
                           <Flame size={16} className="text-orange-500" /> Avg Placement Package
                         </td>
-                        <td className="p-4">{college1Data.avg_placement_package_lpa ? `₹${college1Data.avg_placement_package_lpa} LPA` : 'N/A'}</td>
-                        <td className="p-4">{college2Data.avg_placement_package_lpa ? `₹${college2Data.avg_placement_package_lpa} LPA` : 'N/A'}</td>
+                        <td className="p-4">
+                          {college1Data.avg_placement_package_lpa ? `₹${college1Data.avg_placement_package_lpa} LPA` : 'N/A'}
+                          <ConfidenceIndicator confidence={college1Data.data_confidence} />
+                        </td>
+                        <td className="p-4">
+                          {college2Data.avg_placement_package_lpa ? `₹${college2Data.avg_placement_package_lpa} LPA` : 'N/A'}
+                          <ConfidenceIndicator confidence={college2Data.data_confidence} />
+                        </td>
                         <td className="p-4 text-secondary-fixed-dim font-bold">
                           {(!college1Data.avg_placement_package_lpa || !college2Data.avg_placement_package_lpa) ? 'N/A' : 
                             college1Data.avg_placement_package_lpa > college2Data.avg_placement_package_lpa ? college1Data.name : college2Data.name}
@@ -295,9 +327,29 @@ export const Compare: React.FC = () => {
                         <td className="p-4 font-semibold text-on-surface flex items-center gap-2">
                           <IndianRupee size={16} className="text-green-400" /> Fees (4 Yrs, No Hostel)
                         </td>
-                        <td className="p-4">{college1Data.total_fees_4_years_inr ? `₹${(college1Data.total_fees_4_years_inr / 100000).toFixed(2)} Lakhs` : 'N/A'}</td>
-                        <td className="p-4">{college2Data.total_fees_4_years_inr ? `₹${(college2Data.total_fees_4_years_inr / 100000).toFixed(2)} Lakhs` : 'N/A'}</td>
-                        <td className="p-4 text-green-400 font-bold">
+                        <td className="p-4">
+                          {college1Data.total_fees_4_years_inr ? `₹${(college1Data.total_fees_4_years_inr / 100000).toFixed(2)} Lakhs` : 'N/A'}
+                          <ConfidenceIndicator confidence={college1Data.data_confidence} />
+                          {college1Data.official_fee_link && (
+                            <div className="mt-1">
+                              <a href={college1Data.official_fee_link} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary/80 hover:text-primary flex items-center gap-1 w-max">
+                                Verify official fees <ExternalLink size={10} />
+                              </a>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {college2Data.total_fees_4_years_inr ? `₹${(college2Data.total_fees_4_years_inr / 100000).toFixed(2)} Lakhs` : 'N/A'}
+                          <ConfidenceIndicator confidence={college2Data.data_confidence} />
+                          {college2Data.official_fee_link && (
+                            <div className="mt-1">
+                              <a href={college2Data.official_fee_link} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary/80 hover:text-primary flex items-center gap-1 w-max">
+                                Verify official fees <ExternalLink size={10} />
+                              </a>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 text-green-400 font-bold align-top pt-5">
                           {(!college1Data.total_fees_4_years_inr || !college2Data.total_fees_4_years_inr) ? 'N/A' : 
                             college1Data.total_fees_4_years_inr < college2Data.total_fees_4_years_inr ? college1Data.name : college2Data.name}
                         </td>
@@ -323,6 +375,10 @@ export const Compare: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              <div className="text-center text-xs text-on-surface-variant/60 italic">
+                Fee and placement figures are best-effort estimates compiled from public sources. Please verify exact figures using the official college links provided before making decisions.
               </div>
 
               <div className="glass-card p-6 rounded-2xl border border-primary/20 space-y-4">
