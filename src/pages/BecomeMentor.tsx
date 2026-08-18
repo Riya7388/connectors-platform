@@ -3,7 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { 
-  DollarSign, HelpingHand, Network, User, Mail, Phone, School, 
+  DollarSign, HelpingHand, Network, User, Mail, Phone, School, Search,
   Award, CheckCircle, MapPin, Calendar, Building, Link, ShieldCheck, IndianRupee, Smartphone
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
@@ -22,7 +22,8 @@ declare global {
 // --- Schema Definition ---
 const mentorSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
-  profilePhotoUrl: z.string().url("Profile photo is required"),
+  // File upload URLs are optional in schema — uploads are verified by admins post-submission
+  profilePhotoUrl: z.string().url().optional().or(z.literal("")),
   dob: z.string().refine((val) => {
     if (!val) return false;
     const age = (new Date().getTime() - new Date(val).getTime()) / 31557600000;
@@ -34,19 +35,34 @@ const mentorSchema = z.object({
   city: z.string().min(2, "City is required"),
   whatsapp: z.string().optional(),
   
-  college: z.string().min(2, "College name is required"),
-  branch: z.string().min(2, "Branch/Major is required"),
-  degreeType: z.string().min(2, "Degree type is required"),
-  admissionYear: z.string().min(4, "Required"),
-  gradYear: z.string().min(4, "Required"),
+  examCategory: z.string().min(1, "Exam category is required"),
+  college: z.string().optional(),
+  branch: z.string().optional(),
+  degreeType: z.string().optional(),
+  admissionYear: z.string().optional(),
+  gradYear: z.string().optional(),
   currentSemester: z.string().optional(),
+  caStage: z.string().optional(),
+  upscStage: z.string().optional(),
+  upscOptionalSubject: z.string().optional(),
+  targetAttemptYear: z.string().optional(),
+  institutionOther: z.string().optional(),
+  courseType: z.string().optional(),
+  targetExam: z.string().optional(),
+  targetCollege: z.string().optional(),
+  otherExam: z.string().optional(),
+  currentPrepStage: z.string().optional(),
+  examBranch: z.string().optional(),
+  examBranchOther: z.string().optional(),
   
-  govtIdUrl: z.string().url("Govt ID is required"),
-  studentIdFrontUrl: z.string().url("Student ID Front is required"),
-  studentIdBackUrl: z.string().url("Student ID Back is required"),
+  // File upload URLs — optional in schema, verified by admin after submission
+  govtIdUrl: z.string().url().optional().or(z.literal("")),
+  studentIdFrontUrl: z.string().url().optional().or(z.literal("")),
+  studentIdBackUrl: z.string().url().optional().or(z.literal("")),
   linkedinUrl: z.string().regex(/^https:\/\/(www\.)?linkedin\.com\/in\/.*$/, "Must be a valid LinkedIn profile URL"),
   
   languages: z.array(z.string()).min(1, "Select at least one language"),
+  areasOfExpertise: z.array(z.string()).min(1, "Select at least one area of expertise"),
   sessionDurations: z.array(z.string()).min(1, "Select at least one session duration"),
   prices: z.record(z.string(), z.string()).optional(),
   freeIntro: z.boolean().default(false),
@@ -55,19 +71,60 @@ const mentorSchema = z.object({
   bankAccount: z.string().optional(),
   ifscCode: z.string().optional(),
   accountHolder: z.string().optional(),
-  upiId: z.string().optional()
+  upiId: z.string().optional(),
+  bio: z.string().min(50, "Bio must be at least 50 characters").max(1000, "Bio must be under 1000 characters")
 }).superRefine((data, ctx) => {
+  // Exam Category Conditional Validation
+  if (data.examCategory === "JEE") {
+    if (!data.college) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["college"] });
+    if (!data.branch) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["branch"] });
+    if (!data.degreeType) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["degreeType"] });
+    if (!data.admissionYear) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["admissionYear"] });
+    if (!data.gradYear) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["gradYear"] });
+  } else if (data.examCategory === "NEET") {
+    if (!data.college) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["college"] });
+    if (data.college === "Other" && !data.institutionOther) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["institutionOther"] });
+    if (!data.courseType) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["courseType"] });
+    if (!data.gradYear) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["gradYear"] });
+  } else if (data.examCategory === "CA") {
+    if (!data.caStage) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["caStage"] });
+  } else if (data.examCategory === "CAT" || data.examCategory === "CLAT") {
+    if (!data.college) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["college"] });
+    if (data.college === "Other" && !data.institutionOther) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["institutionOther"] });
+  } else if (data.examCategory === "UPSC") {
+    if (!data.upscStage) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["upscStage"] });
+  } else if (data.examCategory === "Banking" || data.examCategory === "Defense") {
+    if (!data.targetExam) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["targetExam"] });
+  } else if (data.examCategory === "CUET") {
+    if (!data.targetCollege) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["targetCollege"] });
+  } else if (data.examCategory === "Other") {
+    if (!data.otherExam) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["otherExam"] });
+  }
+
   if (data.payoutMethod === "bank") {
     if (!data.bankAccount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["bankAccount"] });
     if (!data.ifscCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["ifscCode"] });
     if (!data.accountHolder) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["accountHolder"] });
   } else if (data.payoutMethod === "upi") {
-    if (!data.upiId || !data.upiId.includes('@')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valid UPI ID required", path: ["upiId"] });
+    if (!data.upiId || !data.upiId.includes('@')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valid UPI ID required (must contain @)", path: ["upiId"] });
   }
   
   const currentYear = new Date().getFullYear();
-  if (parseInt(data.gradYear) >= currentYear && !data.currentSemester) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Current semester required", path: ["currentSemester"] });
+  if (data.gradYear && parseInt(data.gradYear) >= currentYear && !data.currentSemester) {
+    if (data.examCategory === "JEE") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Current semester required", path: ["currentSemester"] });
+    }
+  }
+
+  // Pricing Validation
+  if (!data.sessionDurations || data.sessionDurations.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select at least one session duration", path: ["sessionDurations"] });
+  } else {
+    data.sessionDurations.forEach(duration => {
+      if (!data.prices || !data.prices[duration] || isNaN(parseFloat(data.prices[duration]))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Required`, path: ["prices", duration] });
+      }
+    });
   }
 });
 
@@ -76,12 +133,40 @@ type MentorFormValues = z.infer<typeof mentorSchema>;
 const LANGUAGES = ["English", "Hindi", "Telugu", "Tamil", "Kannada", "Malayalam", "Marathi", "Bengali"];
 const DURATIONS = ["15 min", "30 min", "60 min"];
 const DEGREE_TYPES = ["B.Tech", "M.Tech", "BSc", "BCA", "MCA", "Other"];
-const BRANCHES = ["CSE", "ECE", "Mechanical", "Civil", "EEE", "IT", "Other"];
+const EXAM_CATEGORIES = ["JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET", "Other"];
+const CA_STAGES = ["Foundation", "Intermediate", "Articleship", "CA Finalist", "CA Qualified"];
+const UPSC_STAGES = ["Prelims", "Mains", "Interview", "Qualified"];
+const NEET_COURSES = ["MBBS", "BDS", "BAMS", "BHMS", "Other"];
+const BANKING_EXAMS = ["SBI PO", "SBI Clerk", "IBPS PO", "IBPS Clerk", "RBI Grade B", "Other"];
+const DEFENSE_EXAMS = ["NDA", "CDS", "AFCAT", "Other"];
+const PREP_STAGES = ["Just Starting", "1+ Year Experience", "Repeater", "Qualified & Working", "Not Applicable"];
+const AREAS_OF_EXPERTISE = [
+  "Exam Strategy & Study Plan",
+  "Interview Prep",
+  "Career Counselling",
+  "Mock Tests & Practice",
+  "Motivation & Mindset Coaching",
+  "College/Institute Selection",
+  "Doubt Solving / Subject Help",
+  "Time Management"
+];
 
 export const BecomeMentor: React.FC = () => {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneWarning, setPhoneWarning] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  
+  // Dynamic branches from DB
+  const [dbBranches, setDbBranches] = useState<string[]>([]);
+  const [branchSearch, setBranchSearch] = useState("");
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [collegeSearch, setCollegeSearch] = useState("");
+  const [collegeDropdownOpen, setCollegeDropdownOpen] = useState(false);
+  const [dbInstitutions, setDbInstitutions] = useState<{name: string, exam_category: string}[]>([]);
+  const [dbExamBranches, setDbExamBranches] = useState<{name: string, exam_category: string}[]>([]);
+  const [examBranchSearch, setExamBranchSearch] = useState("");
+  const [examBranchDropdownOpen, setExamBranchDropdownOpen] = useState(false);
   
   // OTP States
   const [otpSent, setOtpSent] = useState(false);
@@ -89,23 +174,65 @@ export const BecomeMentor: React.FC = () => {
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [timer, setTimer] = useState(0);
 
-  const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid } } = useForm<MentorFormValues>({
+  const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
     resolver: zodResolver(mentorSchema),
-    mode: "onBlur",
+    mode: "all",
     defaultValues: {
       languages: [],
+      areasOfExpertise: [],
       sessionDurations: [],
       payoutMethod: "upi",
       freeIntro: true,
-      prices: {}
+      prices: {},
+      bio: ""
     }
   });
 
+  const watchExamCategory = watch("examCategory");
+  const watchCollege = watch("college");
   const watchGradYear = watch("gradYear");
+  const watchExamBranch = watch("examBranch");
   const watchPhone = watch("phone");
   const watchPayoutMethod = watch("payoutMethod");
   const watchSessionDurations = watch("sessionDurations") || [];
   const watchFreeIntro = watch("freeIntro");
+  const watchBio = watch("bio") || "";
+
+  // Fetch branches from DB
+  useEffect(() => {
+    const fetchBranches = async () => {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('name')
+        .order('name', { ascending: true });
+      if (data && !error) {
+        setDbBranches(data.map((b: { name: string }) => b.name));
+      }
+    };
+    fetchBranches();
+
+    const fetchInstitutions = async () => {
+      const { data, error } = await supabase
+        .from('institutions')
+        .select('name, exam_category')
+        .order('name', { ascending: true });
+      if (data && !error) {
+        setDbInstitutions(data);
+      }
+    };
+    fetchInstitutions();
+
+    const fetchExamBranches = async () => {
+      const { data, error } = await supabase
+        .from('exam_branches')
+        .select('name, exam_category')
+        .order('name', { ascending: true });
+      if (data && !error) {
+        setDbExamBranches(data);
+      }
+    };
+    fetchExamBranches();
+  }, []);
 
   useEffect(() => {
     if (!window.recaptchaVerifier && auth.app.options.apiKey) {
@@ -168,9 +295,10 @@ export const BecomeMentor: React.FC = () => {
 
   const onSubmit = async (data: MentorFormValues) => {
     if (!phoneVerified) {
-      alert("Please verify your phone number before submitting.");
+      setPhoneWarning(true);
       return;
     }
+    setPhoneWarning(false);
     
     setIsSubmitting(true);
     try {
@@ -194,12 +322,25 @@ export const BecomeMentor: React.FC = () => {
           personal_email: data.personalEmail,
           city: data.city,
           whatsapp_number: data.whatsapp,
-          college_name: data.college,
-          branch: data.branch,
-          degree_type: data.degreeType,
-          year_of_admission: parseInt(data.admissionYear),
-          graduation_year: parseInt(data.gradYear),
-          current_semester: data.currentSemester,
+          exam_category: data.examCategory,
+          ca_stage: data.caStage,
+          upsc_stage: data.upscStage,
+          upsc_optional_subject: data.upscOptionalSubject,
+          target_attempt_year: data.targetAttemptYear ? parseInt(data.targetAttemptYear) : null,
+          institution_other: data.institutionOther,
+          current_prep_stage: data.currentPrepStage,
+          exam_branch: data.examBranch || "",
+          exam_branch_other: data.examBranchOther || "",
+          course_type: data.courseType,
+          target_exam: data.targetExam,
+          target_college: data.targetCollege,
+          other_exam: data.otherExam,
+          college_name: data.college || "",
+          branch: data.branch || "",
+          degree_type: data.degreeType || "",
+          year_of_admission: data.admissionYear ? parseInt(data.admissionYear) : null,
+          graduation_year: data.gradYear ? parseInt(data.gradYear) : null,
+          current_semester: data.currentSemester || "",
           govt_id_url: data.govtIdUrl,
           student_id_front_url: data.studentIdFrontUrl,
           student_id_back_url: data.studentIdBackUrl,
@@ -213,13 +354,14 @@ export const BecomeMentor: React.FC = () => {
           bank_ifsc: data.ifscCode,
           bank_account_holder: data.accountHolder,
           upi_id: data.upiId,
-          application_status: 'pending',
-          phone_verified: phoneVerified
+          application_status: 'pending'
         }
       ]);
 
       if (error) {
-        console.warn("DB Error (it might not exist yet):", error);
+        console.error("Failed to submit application:", error);
+        alert("Something went wrong submitting your application — please try again.");
+        return;
       }
       
       setFormSubmitted(true);
@@ -413,68 +555,578 @@ export const BecomeMentor: React.FC = () => {
                       />
                     )}
                   />
+
+                  <div className="space-y-2 mt-6">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex justify-between">
+                      <span>Bio / About You</span>
+                      <span className={watchBio.length < 50 || watchBio.length > 1000 ? "text-red-500" : "text-primary"}>
+                        {watchBio.length} / 1000
+                      </span>
+                    </label>
+                    <textarea 
+                      {...register("bio")} 
+                      className={`w-full bg-surface-container-low/50 border ${errors.bio ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none min-h-[120px] custom-scrollbar`} 
+                      placeholder="Tell students about yourself — your journey, what you can help with, and why they should connect with you."
+                    ></textarea>
+                    {errors.bio && <p className="text-xs text-red-500">{errors.bio.message}</p>}
+                  </div>
                 </div>
 
                 {/* --- B. Academic Details --- */}
                 <div className="space-y-6">
                   <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">B. Academic Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / University</label>
-                      <div className="relative">
-                        <input {...register("college")} className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 pl-11 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="e.g. IIT Bombay" />
-                        <Building className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={16} />
-                      </div>
-                      {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Degree Type</label>
-                      <select {...register("degreeType")} className={`w-full bg-surface-container-low/50 border ${errors.degreeType ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Degree</option>
-                        {DEGREE_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
+                    {/* 1. EXAM CATEGORY */}
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Exam Category</label>
+                      <select {...register("examCategory")} className={`w-full bg-surface-container-low/50 border ${errors.examCategory ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                        <option value="">Select Exam Category</option>
+                        {EXAM_CATEGORIES.map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
-                      {errors.degreeType && <p className="text-xs text-red-500">{errors.degreeType.message}</p>}
+                      {errors.examCategory && <p className="text-xs text-red-500">{errors.examCategory.message}</p>}
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Branch / Major</label>
-                      <select {...register("branch")} className={`w-full bg-surface-container-low/50 border ${errors.branch ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Branch</option>
-                        {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                      {errors.branch && <p className="text-xs text-red-500">{errors.branch.message}</p>}
-                    </div>
+                    {/* 2. CONDITIONAL FIELDS BASED ON EXAM CATEGORY */}
+                    
+                    {/* === JEE === */}
+                    {watchExamCategory === "JEE" && (
+                      <>
+                        <div className="space-y-2 relative">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / University</label>
+                          <div className="relative">
+                            <div
+                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                            >
+                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                {watchCollege || 'Select College'}
+                              </span>
+                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                            {collegeDropdownOpen && (
+                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                  <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                    <input
+                                      type="text"
+                                      value={collegeSearch}
+                                      onChange={(e) => setCollegeSearch(e.target.value)}
+                                      placeholder="Search colleges..."
+                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                  {dbInstitutions
+                                    .filter(i => i.exam_category === 'JEE')
+                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                    .map(i => (
+                                      <button
+                                        key={i.name}
+                                        type="button"
+                                        onClick={() => {
+                                          setValue("college", i.name);
+                                          trigger("college");
+                                          setCollegeDropdownOpen(false);
+                                          setCollegeSearch("");
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                        }`}
+                                      >
+                                        {i.name}
+                                      </button>
+                                    ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setValue("college", "Other");
+                                      trigger("college");
+                                      setCollegeDropdownOpen(false);
+                                      setCollegeSearch("");
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                      watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                    }`}
+                                  >
+                                    Other
+                                  </button>
+                                  {dbInstitutions.filter(i => i.exam_category === 'JEE').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <input type="hidden" {...register("college")} />
+                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                          {watchCollege === "Other" && (
+                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college name" />
+                          )}
+                        </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Admission Year</label>
-                      <select {...register("admissionYear")} className={`w-full bg-surface-container-low/50 border ${errors.admissionYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Year</option>
-                        {Array.from({length: 10}, (_, i) => currentYear - i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-                      </select>
-                      {errors.admissionYear && <p className="text-xs text-red-500">{errors.admissionYear.message}</p>}
-                    </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Degree Type</label>
+                          <select {...register("degreeType")} className={`w-full bg-surface-container-low/50 border ${errors.degreeType ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Degree</option>
+                            {DEGREE_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                          {errors.degreeType && <p className="text-xs text-red-500">{errors.degreeType.message}</p>}
+                        </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Graduation Year</label>
-                      <select {...register("gradYear")} className={`w-full bg-surface-container-low/50 border ${errors.gradYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Year</option>
-                        {Array.from({length: 10}, (_, i) => currentYear - 3 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-                      </select>
-                      {errors.gradYear && <p className="text-xs text-red-500">{errors.gradYear.message}</p>}
-                    </div>
+                        <div className="space-y-2 relative">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Branch / Major</label>
+                          <div className="relative">
+                            <div 
+                              onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+                              className={`w-full bg-surface-container-low/50 border ${errors.branch ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                            >
+                              <span className={watch("branch") ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                {watch("branch") || 'Select Branch'}
+                              </span>
+                              <svg className={`w-4 h-4 transition-transform ${branchDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                            {branchDropdownOpen && (
+                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                  <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                    <input
+                                      type="text"
+                                      value={branchSearch}
+                                      onChange={(e) => setBranchSearch(e.target.value)}
+                                      placeholder="Search branches..."
+                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                  {dbBranches
+                                    .filter(b => b.toLowerCase().includes(branchSearch.toLowerCase()))
+                                    .map(b => (
+                                      <button
+                                        key={b}
+                                        type="button"
+                                        onClick={() => {
+                                          setValue("branch", b);
+                                          trigger("branch");
+                                          setBranchDropdownOpen(false);
+                                          setBranchSearch("");
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                          watch("branch") === b ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                        }`}
+                                      >
+                                        {b}
+                                      </button>
+                                    ))}
+                                  {dbBranches.filter(b => b.toLowerCase().includes(branchSearch.toLowerCase())).length === 0 && (
+                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No branches found</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <input type="hidden" {...register("branch")} />
+                          {errors.branch && <p className="text-xs text-red-500">{errors.branch.message}</p>}
+                        </div>
 
-                    {watchGradYear && parseInt(watchGradYear) >= currentYear && (
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Semester</label>
-                        <select {...register("currentSemester")} className={`w-full bg-surface-container-low/50 border ${errors.currentSemester ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                          <option value="">Select Semester</option>
-                          {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s.toString()}>Semester {s}</option>)}
-                          <option value="Graduated">Graduated</option>
-                        </select>
-                        {errors.currentSemester && <p className="text-xs text-red-500">{errors.currentSemester.message}</p>}
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Admission Year</label>
+                          <select {...register("admissionYear")} className={`w-full bg-surface-container-low/50 border ${errors.admissionYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Year</option>
+                            {Array.from({length: 10}, (_, i) => currentYear - i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
+                          </select>
+                          {errors.admissionYear && <p className="text-xs text-red-500">{errors.admissionYear.message}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Graduation Year</label>
+                          <select {...register("gradYear")} className={`w-full bg-surface-container-low/50 border ${errors.gradYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Year</option>
+                            {Array.from({length: 10}, (_, i) => currentYear - 3 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
+                          </select>
+                          {errors.gradYear && <p className="text-xs text-red-500">{errors.gradYear.message}</p>}
+                        </div>
+
+                        {watchGradYear && parseInt(watchGradYear) >= currentYear && (
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Semester</label>
+                            <select {...register("currentSemester")} className={`w-full bg-surface-container-low/50 border ${errors.currentSemester ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                              <option value="">Select Semester</option>
+                              {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s.toString()}>Semester {s}</option>)}
+                              <option value="Graduated">Graduated</option>
+                            </select>
+                            {errors.currentSemester && <p className="text-xs text-red-500">{errors.currentSemester.message}</p>}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* === NEET === */}
+                    {watchExamCategory === "NEET" && (
+                      <>
+                        
+                        <div className="space-y-2 relative">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                          <div className="relative">
+                            <div 
+                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                            >
+                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                {watchCollege || 'Select College'}
+                              </span>
+                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                            {collegeDropdownOpen && (
+                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                  <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                    <input
+                                      type="text"
+                                      value={collegeSearch}
+                                      onChange={(e) => setCollegeSearch(e.target.value)}
+                                      placeholder="Search colleges..."
+                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                  {dbInstitutions
+                                    .filter(i => i.exam_category === 'NEET')
+                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                    .map(i => (
+                                      <button
+                                        key={i.name}
+                                        type="button"
+                                        onClick={() => {
+                                          setValue("college", i.name);
+                                          trigger("college");
+                                          setCollegeDropdownOpen(false);
+                                          setCollegeSearch("");
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                        }`}
+                                      >
+                                        {i.name}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setValue("college", "Other");
+                                        trigger("college");
+                                        setCollegeDropdownOpen(false);
+                                        setCollegeSearch("");
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                        watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                      }`}
+                                    >
+                                      Other
+                                    </button>
+                                  {dbInstitutions.filter(i => i.exam_category === 'NEET').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <input type="hidden" {...register("college")} />
+                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                          {watchCollege === "Other" && (
+                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Course Type</label>
+                          <select {...register("courseType")} className={`w-full bg-surface-container-low/50 border ${errors.courseType ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Course</option>
+                            {NEET_COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          {errors.courseType && <p className="text-xs text-red-500">{errors.courseType.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Graduation Year</label>
+                          <select {...register("gradYear")} className={`w-full bg-surface-container-low/50 border ${errors.gradYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Year</option>
+                            {Array.from({length: 10}, (_, i) => currentYear - 3 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
+                          </select>
+                          {errors.gradYear && <p className="text-xs text-red-500">{errors.gradYear.message}</p>}
+                        </div>
+                      </>
+                    )}
+
+                    {/* === CA === */}
+                    {watchExamCategory === "CA" && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">CA Stage</label>
+                          <select {...register("caStage")} className={`w-full bg-surface-container-low/50 border ${errors.caStage ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Stage</option>
+                            {CA_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          {errors.caStage && <p className="text-xs text-red-500">{errors.caStage.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* === CAT & CLAT === */}
+                    {(watchExamCategory === "CAT" || watchExamCategory === "CLAT") && (
+                      <>
+                        
+                        <div className="space-y-2 relative">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                          <div className="relative">
+                            <div 
+                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                            >
+                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                {watchCollege || 'Select College'}
+                              </span>
+                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                            {collegeDropdownOpen && (
+                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                  <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                    <input
+                                      type="text"
+                                      value={collegeSearch}
+                                      onChange={(e) => setCollegeSearch(e.target.value)}
+                                      placeholder="Search colleges..."
+                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                  {dbInstitutions
+                                    .filter(i => i.exam_category === watchExamCategory)
+                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                    .map(i => (
+                                      <button
+                                        key={i.name}
+                                        type="button"
+                                        onClick={() => {
+                                          setValue("college", i.name);
+                                          trigger("college");
+                                          setCollegeDropdownOpen(false);
+                                          setCollegeSearch("");
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                        }`}
+                                      >
+                                        {i.name}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setValue("college", "Other");
+                                        trigger("college");
+                                        setCollegeDropdownOpen(false);
+                                        setCollegeSearch("");
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                        watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                      }`}
+                                    >
+                                      Other
+                                    </button>
+                                  {dbInstitutions.filter(i => i.exam_category === watchExamCategory).filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <input type="hidden" {...register("college")} />
+                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                          {watchCollege === "Other" && (
+                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* === UPSC === */}
+                    {watchExamCategory === "UPSC" && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">UPSC Stage</label>
+                          <select {...register("upscStage")} className={`w-full bg-surface-container-low/50 border ${errors.upscStage ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Stage</option>
+                            {UPSC_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          {errors.upscStage && <p className="text-xs text-red-500">{errors.upscStage.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Optional Subject (Optional)</label>
+                          <input type="text" {...register("upscOptionalSubject")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. History" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* === Banking & Defense === */}
+                    {(watchExamCategory === "Banking" || watchExamCategory === "Defense") && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Exam</label>
+                          <select {...register("targetExam")} className={`w-full bg-surface-container-low/50 border ${errors.targetExam ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
+                            <option value="">Select Exam</option>
+                            {(watchExamCategory === "Banking" ? BANKING_EXAMS : DEFENSE_EXAMS).map(e => <option key={e} value={e}>{e}</option>)}
+                          </select>
+                          {errors.targetExam && <p className="text-xs text-red-500">{errors.targetExam.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* === CUET === */}
+                    {watchExamCategory === "CUET" && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target College/University</label>
+                          <input type="text" {...register("targetCollege")} className={`w-full bg-surface-container-low/50 border ${errors.targetCollege ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="e.g. Delhi University" />
+                          {errors.targetCollege && <p className="text-xs text-red-500">{errors.targetCollege.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* === Other === */}
+                    {watchExamCategory === "Other" && (
+                      <>
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Which exam are you mentoring for?</label>
+                          <input type="text" {...register("otherExam")} className={`w-full bg-surface-container-low/50 border ${errors.otherExam ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="e.g. GRE, GMAT" />
+                          {errors.otherExam && <p className="text-xs text-red-500">{errors.otherExam.message}</p>}
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
+                          <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
+                        </div>
+                      </>
+                    )}
+
+                    
+                    {/* Universal Field for Branch/Specialization (Except JEE/Other) */}
+                    {watchExamCategory && watchExamCategory !== "JEE" && watchExamCategory !== "Other" && (
+                      <div className="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-outline-variant/20">
+                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Branch / Specialization</label>
+                        <div className="relative">
+                          <div 
+                            onClick={() => setExamBranchDropdownOpen(!examBranchDropdownOpen)}
+                            className={`w-full bg-surface-container-low/50 border ${errors.examBranch ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                          >
+                            <span className={watchExamBranch && watchExamBranch !== "Other" ? 'text-on-surface' : watchExamBranch === "Other" ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                              {watchExamBranch || 'Select Branch/Specialization'}
+                            </span>
+                            <svg className={`w-4 h-4 transition-transform ${examBranchDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                          {examBranchDropdownOpen && (
+                            <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                              <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                  <input
+                                    type="text"
+                                    value={examBranchSearch}
+                                    onChange={(e) => setExamBranchSearch(e.target.value)}
+                                    placeholder="Search branches..."
+                                    className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                              <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                {dbExamBranches
+                                  .filter(b => b.exam_category === watchExamCategory)
+                                  .filter(b => b.name.toLowerCase().includes(examBranchSearch.toLowerCase()))
+                                  .map(b => (
+                                    <button
+                                      key={b.name}
+                                      type="button"
+                                      onClick={() => {
+                                        setValue("examBranch", b.name);
+                                        trigger("examBranch");
+                                        setExamBranchDropdownOpen(false);
+                                        setExamBranchSearch("");
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                        watchExamBranch === b.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                      }`}
+                                    >
+                                      {b.name}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setValue("examBranch", "Other");
+                                      trigger("examBranch");
+                                      setExamBranchDropdownOpen(false);
+                                      setExamBranchSearch("");
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                      watchExamBranch === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                    }`}
+                                  >
+                                    Other
+                                  </button>
+                                {dbExamBranches.filter(b => b.exam_category === watchExamCategory).filter(b => b.name.toLowerCase().includes(examBranchSearch.toLowerCase())).length === 0 && (
+                                  <p className="px-4 py-3 text-xs text-on-surface-variant">No branches found (Select Other)</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <input type="hidden" {...register("examBranch")} />
+                        {errors.examBranch && <p className="text-xs text-red-500">{errors.examBranch.message}</p>}
+                        {watchExamBranch === "Other" && (
+                          <input {...register("examBranchOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.examBranchOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your specialization" />
+                        )}
                       </div>
                     )}
+
+                    {/* Universal Field at the end of Section B */}
+                    <div className="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-outline-variant/20">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Preparation Stage</label>
+                      <select {...register("currentPrepStage")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface">
+                        <option value="">Select Stage (Optional)</option>
+                        {PREP_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
                   </div>
                 </div>
 
@@ -544,6 +1196,22 @@ export const BecomeMentor: React.FC = () => {
                   <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">D. Mentoring Preferences</h3>
                   
                   <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Areas of Expertise</label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1">Select all topics you can help students with</p>
+                    <div className="flex flex-wrap gap-2">
+                      {AREAS_OF_EXPERTISE.map(topic => (
+                        <label key={topic} className="flex items-center cursor-pointer">
+                          <input type="checkbox" value={topic} {...register("areasOfExpertise")} className="peer hidden" />
+                          <div className="px-4 py-2 rounded-full border border-outline-variant/30 peer-checked:bg-primary/20 peer-checked:text-primary peer-checked:border-primary text-sm font-medium text-on-surface-variant transition-colors">
+                            {topic}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.areasOfExpertise && <p className="text-xs text-red-500">{errors.areasOfExpertise.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Languages Known</label>
                     <div className="flex flex-wrap gap-2">
                       {LANGUAGES.map(lang => (
@@ -569,14 +1237,19 @@ export const BecomeMentor: React.FC = () => {
                           </label>
                           
                           {watchSessionDurations.includes(duration) && (
-                            <div className="flex-1 relative max-w-[200px]">
-                              <input 
-                                type="number" 
-                                {...register(`prices.${duration}`)} 
-                                className="w-full bg-surface-container-low border border-outline-variant/30 px-3 py-2 pl-8 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none" 
-                                placeholder="Rate per session" 
-                              />
-                              <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                            <div className="flex-1 max-w-[200px]">
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  {...register(`prices.${duration}` as any)} 
+                                  className={`w-full bg-surface-container-low border ${(errors.prices as any)?.[duration] ? 'border-red-500' : 'border-outline-variant/30'} px-3 py-2 pl-8 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`} 
+                                  placeholder="Rate per session" 
+                                />
+                                <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                              </div>
+                              {(errors.prices as any)?.[duration] && (
+                                <p className="text-[10px] text-red-500 mt-1">{(errors.prices as any)[duration].message}</p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -642,19 +1315,35 @@ export const BecomeMentor: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-8 border-t border-outline-variant/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <span className="text-xs text-on-surface-variant text-center sm:text-left">By proceeding, you agree to our verification policies.</span>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !phoneVerified}
-                    className="w-full sm:w-auto brand-gradient-bg text-white font-bold text-sm px-8 py-3.5 rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
-                  >
-                    {isSubmitting ? (
-                      <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-                    ) : (
-                      "Next Step"
-                    )}
-                  </button>
+                <div className="pt-8 border-t border-outline-variant/20 flex flex-col gap-4">
+                  {/* Phone verification warning */}
+                  {phoneWarning && !phoneVerified && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-400 font-medium">
+                      ⚠️ Please verify your phone number before submitting — click "Verify" next to the phone field above.
+                    </div>
+                  )}
+
+                  {/* Validation errors summary (shown after first submit attempt) */}
+                  {isSubmitted && !isValid && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
+                      Some required fields are missing or invalid — please scroll up and check the highlighted fields.
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <span className="text-xs text-on-surface-variant text-center sm:text-left">By proceeding, you agree to our verification policies.</span>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full sm:w-auto brand-gradient-bg text-white font-bold text-sm px-8 py-3.5 rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2 shadow-lg shadow-primary/25"
+                    >
+                      {isSubmitting ? (
+                        <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      ) : (
+                        "Next Step →"
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

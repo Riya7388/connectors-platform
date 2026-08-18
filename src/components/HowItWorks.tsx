@@ -23,14 +23,6 @@ interface Step {
   borderColor: string;
 }
 
-interface Stat {
-  value: string;
-  suffix: string;
-  label: string;
-  gradient: string;
-  glowColor: string;
-}
-
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const STEPS: Step[] = [
@@ -93,37 +85,6 @@ const STEPS: Step[] = [
     iconGradient: "from-pink-500 to-purple-600",
     glowColor: "rgba(236,72,153,0.5)",
     borderColor: "rgba(236,72,153,0.5)",
-  },
-];
-
-const STATS: Stat[] = [
-  {
-    value: "10K",
-    suffix: "+",
-    label: "Successful Consultations",
-    gradient: "from-orange-400 to-pink-500",
-    glowColor: "rgba(249,115,22,0.3)",
-  },
-  {
-    value: "2.5K",
-    suffix: "",
-    label: "Verified IIT/NIT Mentors",
-    gradient: "from-pink-400 to-rose-500",
-    glowColor: "rgba(236,72,153,0.3)",
-  },
-  {
-    value: "98",
-    suffix: "%",
-    label: "Satisfaction Rate",
-    gradient: "from-purple-400 to-pink-500",
-    glowColor: "rgba(168,85,247,0.3)",
-  },
-  {
-    value: "150",
-    suffix: "+",
-    label: "Unique Branches Covered",
-    gradient: "from-violet-400 to-purple-500",
-    glowColor: "rgba(139,92,246,0.3)",
   },
 ];
 
@@ -243,54 +204,6 @@ function SpotlightCard({ step, index, isInView }: SpotlightCardProps) {
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-interface StatCardProps {
-  stat: Stat;
-  index: number;
-  isInView: boolean;
-}
-
-function StatCard({ stat, index, isInView }: StatCardProps) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <motion.div
-      id={`stat-${index}`}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.5, delay: 0.2 + index * 0.1, ease: "easeOut" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="flex flex-col items-center gap-2 px-6 py-8 rounded-2xl transition-all duration-500 cursor-default"
-      style={{
-        background: hovered
-          ? "rgba(255,255,255,0.05)"
-          : "rgba(255,255,255,0.02)",
-        border: `1px solid ${hovered ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)"}`,
-        boxShadow: hovered ? `0 0 40px ${stat.glowColor}` : "none",
-        transform: hovered ? "translateY(-6px)" : "none",
-      }}
-      role="figure"
-      aria-label={`${stat.value}${stat.suffix} ${stat.label}`}
-    >
-      <span
-        className={`text-5xl lg:text-6xl font-extrabold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent transition-all duration-500`}
-        style={{
-          transform: hovered ? "scale(1.08)" : "scale(1)",
-          filter: hovered ? `drop-shadow(0 0 16px ${stat.glowColor})` : "none",
-        }}
-      >
-        {stat.value}
-        {stat.suffix}
-      </span>
-      <span className="text-sm text-white/50 font-medium text-center leading-tight">
-        {stat.label}
-      </span>
-    </motion.div>
-  );
-}
-
 // ─── Animated Connector Line ─────────────────────────────────────────────────
 
 function ConnectorLine({ isInView }: { isInView: boolean }) {
@@ -320,9 +233,7 @@ function ConnectorLine({ isInView }: { isInView: boolean }) {
 
 export default function HowItWorks() {
   const sectionRef = useRef<HTMLElement>(null);
-  const statsRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(sectionRef, { once: true, margin: "-80px" });
-  const statsInView = useInView(statsRef, { once: true, margin: "-60px" });
 
   // Prevent hydration issues with framer-motion
   const [mounted, setMounted] = useState(false);
@@ -425,29 +336,6 @@ export default function HowItWorks() {
                 step={step}
                 index={i}
                 isInView={mounted && isInView}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Statistics ── */}
-        <div
-          ref={statsRef}
-          className="mt-20 rounded-3xl overflow-hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            backdropFilter: "blur(24px)",
-          }}
-        >
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-white/5">
-            {STATS.map((stat, i) => (
-              <StatCard
-                key={stat.label}
-                stat={stat}
-                index={i}
-                isInView={mounted && statsInView}
               />
             ))}
           </div>

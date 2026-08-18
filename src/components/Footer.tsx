@@ -31,7 +31,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               <br />
               Empowering the next generation
               <br />
-              of engineers.
+              of achievers.
             </p>
           </div>
 
@@ -143,7 +143,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
 
         {/* Bottom bar */}
         <div className="mt-14 border-t border-white/10 pt-6 text-center text-sm text-gray-500">
-          Built with ❤️ for students aspiring to make better college decisions.
+          Built with ❤️ for students chasing their next big goal.
         </div>
 
       </div>

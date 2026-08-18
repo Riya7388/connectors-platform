@@ -8,14 +8,7 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
-  const [collegeSearch, setCollegeSearch] = useState("");
-  const [branchSearch, setBranchSearch] = useState("");
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a full router app we'd pass query, for now just go to find-mentor
-    setActiveTab("find-mentor");
-  };
 
   return (
     <div className="relative min-h-screen">
@@ -107,78 +100,91 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
         </div>
       </header>
 
-      {/* Quick Search Section */}
-      <section className="py-8 max-w-7xl mx-auto px-6 relative z-30">
-        <form 
-          onSubmit={handleSearchSubmit} 
-          className="glass-card p-6 rounded-3xl flex flex-col md:flex-row gap-4 items-center shadow-2xl border border-white/10 -mt-16"
-        >
-          <div className="flex-1 flex items-center gap-3 w-full bg-surface-container-low px-4 py-3 rounded-xl">
-            <GraduationCap className="text-on-surface-variant" size={20} />
-            <input 
-              value={collegeSearch}
-              onChange={(e) => setCollegeSearch(e.target.value)}
-              className="bg-transparent border-none focus:ring-0 w-full text-on-surface text-sm outline-none placeholder-on-surface-variant/50" 
-              placeholder="College or University..." 
-              type="text"
-            />
-          </div>
-          <div className="hidden md:block w-[1px] h-10 bg-outline-variant/30"></div>
-          <div className="flex-1 flex items-center gap-3 w-full bg-surface-container-low px-4 py-3 rounded-xl">
-            <Code className="text-on-surface-variant" size={20} />
-            <input 
-              value={branchSearch}
-              onChange={(e) => setBranchSearch(e.target.value)}
-              className="bg-transparent border-none focus:ring-0 w-full text-on-surface text-sm outline-none placeholder-on-surface-variant/50" 
-              placeholder="Branch (CSE, Mechanical, AI/ML...)" 
-              type="text"
-            />
-          </div>
-          <button 
-            type="submit"
-            className="w-full md:w-auto brand-gradient-bg hover:scale-105 active:scale-95 text-white px-8 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
-          >
-            <Search size={16} /> Search Mentors
-          </button>
-        </form>
-      </section>
+
 
       {/* Value Pillars Section */}
-      <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="text-center mb-16 space-y-4">
+      <section className="py-20 w-full overflow-hidden">
+        <div className="text-center mb-16 space-y-4 px-6 max-w-7xl mx-auto">
           <span className="text-secondary-fixed-dim uppercase tracking-widest text-xs font-bold">Why Connectors?</span>
-          <h2 className="text-4xl font-extrabold">Make Informed College Choices</h2>
+          <h2 className="text-4xl font-extrabold">Real Guidance for Every Exam, Every Journey</h2>
           <p className="text-on-surface-variant max-w-xl mx-auto text-sm">
-            Skip the brochures and marketing pages. Get the real, unfiltered student experience directly from campus insiders.
+            Skip the generic advice and coaching brochures. Get real, unfiltered guidance from seniors and qualified professionals who've walked the exact path you're on.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-              <ShieldCheck size={24} />
+        
+        <div className="flex flex-col gap-6 w-full relative">
+          {/* Row 1 */}
+          <div className="flex w-full group overflow-hidden">
+            <div className="flex gap-6 animate-marquee-right whitespace-nowrap px-3 group-hover:[animation-play-state:paused]">
+              {[...Array(2)].map((_, i) => (
+                <React.Fragment key={i}>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-2">
+                      <ShieldCheck size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">Verified Mentors, Every Exam</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      From JEE to UPSC to CA — every mentor is a verified senior or qualified professional in their field.
+                    </p>
+                  </div>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-secondary/20 hover:border-secondary-fixed-dim/50 hover:bg-secondary-fixed-dim/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-secondary-container/10 rounded-xl flex items-center justify-center text-secondary-fixed-dim mb-2">
+                      <Sparkles size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">AI-Powered College Comparison</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      Compare engineering colleges side-by-side with real placement data, NIRF rankings, and semantic insights.
+                    </p>
+                  </div>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-tertiary/20 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-tertiary-container/10 rounded-xl flex items-center justify-center text-tertiary mb-2">
+                      <Users size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">Personalized 1-on-1 Sessions</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      Chat with your mentor, agree on a time, and connect via Google Meet — real conversations, not generic advice.
+                    </p>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
-            <h3 className="text-xl font-bold">100% Verified seniors</h3>
-            <p className="text-on-surface-variant text-sm leading-relaxed">
-              Every mentor completes Institutional Email verification before booking sessions. We guarantee active enrollment authenticity.
-            </p>
           </div>
-          <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-secondary-container/10 rounded-xl flex items-center justify-center text-secondary-fixed-dim">
-              <Sparkles size={24} />
+
+          {/* Row 2 */}
+          <div className="flex w-full group overflow-hidden">
+            <div className="flex gap-6 animate-marquee-right-slow whitespace-nowrap px-3 group-hover:[animation-play-state:paused]">
+              {[...Array(2)].map((_, i) => (
+                <React.Fragment key={i}>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-2">
+                      <GraduationCap size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">Every Major Competitive Exam</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      JEE, NEET, CA, CAT, UPSC, CLAT, Banking, Defense, CUET — mentors across every path, not just engineering.
+                    </p>
+                  </div>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-secondary/20 hover:border-secondary-fixed-dim/50 hover:bg-secondary-fixed-dim/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-secondary-container/10 rounded-xl flex items-center justify-center text-secondary-fixed-dim mb-2">
+                      <Video size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">Free Intro Sessions</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      Try before you commit — many mentors offer a free first session to see if you're a good fit.
+                    </p>
+                  </div>
+                  <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-tertiary/20 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all duration-300 neon-glow-hover cursor-default">
+                    <div className="w-12 h-12 bg-tertiary-container/10 rounded-xl flex items-center justify-center text-tertiary mb-2">
+                      <Star size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold">Rated & Reviewed</h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      Every session is rated by real students, so you always know who to trust.
+                    </p>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
-            <h3 className="text-xl font-bold">AI Placement Analysis</h3>
-            <p className="text-on-surface-variant text-sm leading-relaxed">
-              Compare placement trends, salaries, recruiter visits, and overall industry alignment using deep semantic college profiles.
-            </p>
-          </div>
-          <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-tertiary-container/10 rounded-xl flex items-center justify-center text-tertiary">
-              <Users size={24} />
-            </div>
-            <h3 className="text-xl font-bold">1-on-1 Video Syncs</h3>
-            <p className="text-on-surface-variant text-sm leading-relaxed">
-              Schedule quick 15-minute video calls to clear your doubts about hostel life, professors, grading, exam preparation, and campus culture.
-            </p>
           </div>
         </div>
       </section>
@@ -187,7 +193,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
       <HowItWorks />
 
       {/* Pricing Section */}
-      <PricingSection />
+      <PricingSection setActiveTab={setActiveTab} />
 
       {/* Interactive Platform Overview Callout */}
       <section className="py-12 max-w-7xl mx-auto px-6 mb-16">
@@ -196,7 +202,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
             <div className="flex items-center gap-2 text-primary font-semibold text-sm">
               <Award size={18} /> Elite Campus Partnership program
             </div>
-            <h3 className="text-3xl font-bold">Are you a senior at an IIT, NIT, or IIIT?</h3>
+            <h3 className="text-3xl font-bold">Are You Ready to Mentor the Next Generation?</h3>
             <p className="text-on-surface-variant text-sm">
               Empower junior students looking to get into your branch. Earn up to $40/hour hosting interactive Q&A sessions.
             </p>

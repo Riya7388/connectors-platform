@@ -88,3 +88,43 @@
   0% { left: -100%; }
   100% { left: 200%; }
 }
+
+/* ---- Filter Pill (active filter badges) ---- */
+.filter-pill {
+  @apply inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-full
+         bg-primary/15 text-primary border border-primary/25;
+}
+
+.filter-pill button {
+  @apply hover:text-white hover:bg-primary rounded-full p-0.5 transition-colors;
+}
+
+/* ---- Fade-in animation for dropdowns ---- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+@keyframes marquee-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
+}
+
+.animate-marquee-right {
+  animation: marquee-right 25s linear infinite;
+}
+
+.animate-marquee-right-slow {
+  animation: marquee-right 30s linear infinite;
+}
+
