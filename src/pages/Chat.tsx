@@ -140,7 +140,18 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
           },
           (payload) => {
             const newMsg = payload.new;
-            setMessages((prev) => [...prev, newMsg]);
+            setMessages((prev) => {
+              if (prev.some(m => m.id === newMsg.id)) return prev;
+
+              const tempIndex = prev.findIndex(m => String(m.id).startsWith('temp-') && m.message === newMsg.message && m.sender_id === newMsg.sender_id);
+              if (tempIndex !== -1) {
+                const next = [...prev];
+                next[tempIndex] = newMsg;
+                return next;
+              }
+              
+              return [...prev, newMsg];
+            });
             
             // Mark read if it's sent to us
             if (newMsg.sender_id !== user.id) {
@@ -200,33 +211,53 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
     if (!newMessage.trim() || sending || realMessagesCount >= 10 || request?.status === 'time_confirmed') return;
 
     setSending(true);
-    const text = newMessage;
+    const text = newMessage.trim();
     setNewMessage("");
+
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg = {
+      id: tempId,
+      booking_request_id: id,
+      sender_id: currentUser.id,
+      message: text,
+      created_at: new Date().toISOString(),
+      is_system: false,
+    };
+    
+    // Optimistic update
+    setMessages((prev) => [...prev, tempMsg]);
 
     const isFirstMessage = realMessagesCount === 0;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("chat_messages")
       .insert({
         booking_request_id: id,
         sender_id: currentUser.id,
-        message: text.trim(),
-      });
+        message: text,
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error("Error sending message:", error);
       alert("Failed to send message.");
       setNewMessage(text); // restore
-    } else if (isFirstMessage) {
-      // Trigger email for first message
-      const otherParticipantId = currentUser.id === request.student_id ? request.mentors.user_id : request.student_id;
-      supabase.functions.invoke('send-email', {
-        body: {
-          type: 'first_message',
-          senderId: currentUser.id,
-          recipientId: otherParticipantId
-        }
-      }).catch(console.error);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } else {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)));
+      
+      if (isFirstMessage) {
+        // Trigger email for first message
+        const otherParticipantId = currentUser.id === request.student_id ? request.mentors.user_id : request.student_id;
+        supabase.functions.invoke('send-email', {
+          body: {
+            type: 'first_message',
+            senderId: currentUser.id,
+            recipientId: otherParticipantId
+          }
+        }).catch(console.error);
+      }
     }
 
     setSending(false);
@@ -298,8 +329,13 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       
       if (error || !data?.order_id) throw error || new Error("Failed to create order");
       
+      const razorpayKey = data.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        console.error("Razorpay key not configured. Please set VITE_RAZORPAY_KEY_ID.");
+      }
+      
       const options = {
-        key: data.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TIuUPwIxONhdqH',
+        key: razorpayKey,
         amount: Math.round(request.amount_due * 100),
         currency: "INR",
         name: "Connectors",
