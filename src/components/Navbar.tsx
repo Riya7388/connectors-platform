@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Menu, X, LogOut, User, ChevronDown, LayoutDashboard } from "lucide-react";
 import { supabase } from "../supabase";
+import logoImg from "../assets/logo.png";
 
 interface NavbarProps {
   activeTab: string;
@@ -109,8 +110,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <img
             alt="Connectors Logo"
-            className="h-10 w-10 rounded-full group-hover:scale-105 transition-transform duration-300 group-hover:shadow-[0_0_14px_rgba(249,115,22,0.4)]"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCShZCqSHxd2ll50B0RCnGsXQzGKWy-60z0tBU8sIZvCuvVjqJ8Rx-cVmoH1YGidh-ldpsYTKNmQlBEC1uFP7L5uWYEYGc6173bsvaRRC2V9TNHoQ4cgcvctpMkIJ8Vh-5_QZ9_JiUCpnaKVBPiY2IjAnKDeB1AsQaiv9r0Bsi6o9T8l_i1EsLapu20_2CYcJlrRC24PcCz_4H5UunGMHAQJ5diCPOAHpcMmkRMnEAs46zolql7pZLRyl-K_FL3aWTO4JWXD5L5IHY"
+            className="h-10 w-10 object-contain group-hover:scale-105 transition-transform duration-300"
+            src={logoImg}
           />
           <span className="font-extrabold text-2xl text-primary dark:text-primary-fixed-dim tracking-tight">
             Connectors

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../supabase";
 import { Mail, Lock, LogIn, UserPlus, Zap } from "lucide-react";
+import logoImg from "../assets/logo.png";
 
 interface AuthProps {
   setActiveTab: (tab: string) => void;
@@ -101,9 +102,11 @@ export const Auth: React.FC<AuthProps> = () => {
         {/* Brand header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-full kinetic-gradient flex items-center justify-center shadow-lg shadow-primary/30">
-              <Zap size={20} className="text-white" />
-            </div>
+            <img
+              src={logoImg}
+              alt="Connectors Logo"
+              className="w-10 h-10 object-contain"
+            />
             <span className="font-extrabold text-2xl text-primary tracking-tight">
               Connectors
             </span>
