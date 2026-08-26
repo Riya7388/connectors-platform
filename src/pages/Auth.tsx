@@ -28,7 +28,7 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export const Auth: React.FC<AuthProps> = ({ setActiveTab }) => {
+export const Auth: React.FC<AuthProps> = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

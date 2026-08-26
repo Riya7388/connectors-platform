@@ -4,10 +4,7 @@ import {
   ShieldCheck, 
   Star, 
   MapPin, 
-  Clock,
   MessageCircle,
-  Calendar,
-  IndianRupee,
   ChevronLeft,
   GraduationCap,
   X,
@@ -184,7 +181,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     if (!currentUser || !mentor) return;
     
     setConnectLoading(true);
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("booking_requests")
       .insert({
         student_id: currentUser.id,

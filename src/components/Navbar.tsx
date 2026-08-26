@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sun, Moon, Menu, X, LogOut, User, ChevronDown, LayoutDashboard, Bell } from "lucide-react";
+import { Sun, Moon, Menu, X, LogOut, User, ChevronDown, LayoutDashboard } from "lucide-react";
 import { supabase } from "../supabase";
 
 interface NavbarProps {
@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navLinks = [
     { id: "home", label: "Home" },
-    { id: "compare", label: "Colleges" },
+    { id: "compare", label: "AI Engine" },
     { id: "find-mentor", label: "Mentors" },
     { id: "become-mentor", label: "Become Mentor" },
   ];

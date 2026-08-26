@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Search, GraduationCap, Code, ShieldCheck, Star, Video, ArrowRight, Sparkles, Users, Award } from "lucide-react";
+import React from "react";
+import { GraduationCap, Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck } from "lucide-react";
 import PricingSection from "../components/PricingSection";
 import HowItWorks from "../components/HowItWorks";
 
@@ -21,13 +21,13 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
           <div className="flex flex-col space-y-6">
             <span className="inline-flex items-center gap-1.5 px-4 py-1.5 glass-card rounded-full w-fit font-bold text-xs text-secondary-fixed-dim border border-white/10">
-              <ShieldCheck size={14} className="text-secondary-fixed-dim" /> 2,500+ Verified Mentors Active Now
+              <Sparkles size={14} className="text-secondary-fixed-dim" /> ✦ Verified Mentors Across Competitive Exams
             </span>
             <h1 className="font-extrabold text-5xl lg:text-6xl leading-tight text-on-background tracking-tight">
-              Talk to <span className="brand-gradient-text">Real College Mentors</span> in Real Time
+              Find the <span className="brand-gradient-text">Right Mentor.</span> Build the <span className="brand-gradient-text">Right Path.</span>
             </h1>
             <p className="text-lg text-on-surface-variant max-w-xl leading-relaxed">
-              Connect with verified seniors from your dream college and branch before making one of the most important decisions of your life.
+              Connect with experienced mentors for personalized guidance on competitive exams, colleges, careers, and everything in between.
             </p>
             <div className="flex flex-wrap gap-4 pt-2">
               <button 
@@ -53,8 +53,8 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                 <Video className="text-white" size={28} />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-primary">Live Session</h3>
-                <p className="text-sm text-on-surface-variant">Ongoing call with 120+ students</p>
+                <h3 className="font-bold text-lg text-primary">1:1 Mentorship Session</h3>
+                <p className="text-sm text-on-surface-variant">Personalized guidance for your goals</p>
               </div>
             </div>
 
@@ -86,7 +86,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                 />
                 <div>
                   <p className="font-bold text-sm text-on-surface">Ishani Verma</p>
-                  <p className="text-xs text-on-surface-variant">NIT Trichy • Mechanical</p>
+                  <p className="text-xs text-on-surface-variant">AIIMS Delhi • MBBS</p>
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-between">

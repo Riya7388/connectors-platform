@@ -3,8 +3,8 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { 
-  DollarSign, HelpingHand, Network, User, Mail, Phone, School, Search,
-  Award, CheckCircle, MapPin, Calendar, Building, Link, ShieldCheck, IndianRupee, Smartphone
+  DollarSign, HelpingHand, User, Mail, Phone, Search,
+  CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
@@ -175,7 +175,7 @@ export const BecomeMentor: React.FC = () => {
   const [timer, setTimer] = useState(0);
 
   const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
-    resolver: zodResolver(mentorSchema),
+    resolver: zodResolver(mentorSchema) as any,
     mode: "all",
     defaultValues: {
       languages: [],
@@ -195,7 +195,7 @@ export const BecomeMentor: React.FC = () => {
   const watchPhone = watch("phone");
   const watchPayoutMethod = watch("payoutMethod");
   const watchSessionDurations = watch("sessionDurations") || [];
-  const watchFreeIntro = watch("freeIntro");
+
   const watchBio = watch("bio") || "";
 
   // Fetch branches from DB
@@ -302,7 +302,7 @@ export const BecomeMentor: React.FC = () => {
     
     setIsSubmitting(true);
     try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
       const user = sessionData?.session?.user;
       
       if (!user) {
@@ -354,6 +354,7 @@ export const BecomeMentor: React.FC = () => {
           bank_ifsc: data.ifscCode,
           bank_account_holder: data.accountHolder,
           upi_id: data.upiId,
+          bio: data.bio,
           application_status: 'pending'
         }
       ]);
@@ -437,7 +438,7 @@ export const BecomeMentor: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit(onSubmit)} className="glass-card p-6 md:p-10 rounded-2xl shadow-2xl relative border border-white/10 space-y-10">
+              <form onSubmit={handleSubmit(onSubmit as any)} className="glass-card p-6 md:p-10 rounded-2xl shadow-2xl relative border border-white/10 space-y-10">
                 <div className="flex justify-between items-center pb-4 border-b border-outline-variant/10">
                   <h2 className="text-2xl font-extrabold text-on-surface">Apply to Mentor</h2>
                   <div className="flex gap-1.5 items-center">

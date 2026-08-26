@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sparkles, Star, BrainCircuit, BarChart3, School, MapPin, IndianRupee, Flame, Download, Users, ExternalLink, CheckCircle, Info, AlertCircle } from "lucide-react";
 import { supabase } from "../supabase";
 // @ts-ignore
@@ -10,7 +10,6 @@ interface College {
   nirf_rank: number;
   avg_placement_package_lpa: number;
   total_fees_4_years_inr: number;
-  city: string;
   city: string;
   state: string;
   data_confidence?: 'high' | 'medium-high' | 'medium' | 'low-medium' | 'low' | null;
@@ -163,9 +162,9 @@ export const Compare: React.FC = () => {
     const opt = {
       margin: 0.5,
       filename: `Comparison_${college1Name}_vs_${college2Name}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
     };
     html2pdf().set(opt).from(reportRef.current).save();
   };

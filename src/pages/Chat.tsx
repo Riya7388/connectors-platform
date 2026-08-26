@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
-import { Loader2, Send, Calendar as CalendarIcon, Clock, Hourglass, ArrowLeft, CheckCircle2, MessageSquare, Link as LinkIcon, Star, Flag, AlertTriangle, Video } from "lucide-react";
+import { Loader2, Send, Calendar as CalendarIcon, Hourglass, ArrowLeft, CheckCircle2, MessageSquare, Link as LinkIcon, Star, AlertTriangle, Video } from "lucide-react";
 
 interface ChatProps {
   id: string;
@@ -19,7 +19,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   const [showConfirmForm, setShowConfirmForm] = useState(false);
   const [confirmDate, setConfirmDate] = useState("");
   const [confirmTime, setConfirmTime] = useState("");
-  const [confirmDuration, setConfirmDuration] = useState("30");
+  const [confirmDuration, setConfirmDuration] = useState("");
   const [confirming, setConfirming] = useState(false);
 
   const [meetLinkInput, setMeetLinkInput] = useState("");
@@ -70,7 +70,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       // Fetch mentor details manually
       const { data: mentorData, error: mentorErr } = await supabase
         .from("mentors")
-        .select("id, user_id, full_name, profile_photo_url, free_intro_session, pricing")
+        .select("id, user_id, full_name, profile_photo_url, free_intro_session, pricing, session_durations")
         .eq("id", reqData.mentor_id)
         .single();
 
@@ -79,6 +79,17 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       }
 
       setRequest(reqData);
+
+      // Set the default confirmDuration to the mentor's first configured duration
+      // (parsed from e.g. "30 min" → "30"). Fallback handled below in the dropdown.
+      const rawDurations: string[] = mentorData?.session_durations ?? [];
+      if (rawDurations.length > 0) {
+        const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
+        setConfirmDuration(parseInt(sorted[0]).toString());
+      } else {
+        // Edge-case fallback: no durations configured — default to 30
+        setConfirmDuration("30");
+      }
 
       // Check if the current user has already rated this booking
       if (user) {
@@ -718,10 +729,25 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
               <div className="w-full sm:w-auto flex-1">
                 <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Duration</label>
                 <select value={confirmDuration} onChange={e => setConfirmDuration(e.target.value)} className="w-full bg-surface-container border border-white/10 rounded-xl p-3 text-on-surface focus:border-primary/50 outline-none appearance-none">
-                  <option value="15">15 Minutes</option>
-                  <option value="30">30 Minutes</option>
-                  <option value="45">45 Minutes</option>
-                  <option value="60">1 Hour</option>
+                  {(() => {
+                    // Build options from mentor's configured session_durations.
+                    // Format stored in DB is ["15 min", "30 min", "60 min"] etc.
+                    // Fallback to standard list if mentor has none configured (edge case).
+                    const FALLBACK_DURATIONS = ["15 min", "30 min", "60 min"];
+                    const rawDurations: string[] = request.mentors?.session_durations ?? [];
+                    const durations = rawDurations.length > 0
+                      ? [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b))
+                      : FALLBACK_DURATIONS;
+                    return durations.map((dur) => {
+                      const mins = parseInt(dur); // e.g. 60
+                      const label = mins >= 60
+                        ? `${mins / 60} Hour${mins > 60 ? 's' : ''}`
+                        : `${mins} Minutes`;
+                      return (
+                        <option key={dur} value={String(mins)}>{label}</option>
+                      );
+                    });
+                  })()}
                 </select>
               </div>
               <div className="flex gap-2 w-full sm:w-auto mt-4 sm:mt-0">

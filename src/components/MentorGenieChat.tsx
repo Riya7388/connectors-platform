@@ -15,7 +15,7 @@ export const MentorGenieChat: React.FC = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState<any>(null);
+
   const [sessionId, setSessionId] = useState("");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -49,12 +49,12 @@ export const MentorGenieChat: React.FC = () => {
     }
 
     // 3. Track Auth state to send JWT with requests
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    supabase.auth.getSession().then(() => {
+
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+
     });
 
     return () => subscription.unsubscribe();
@@ -235,7 +235,7 @@ export const MentorGenieChat: React.FC = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about colleges, DSA, placements..."
+                placeholder="Ask about exams, colleges, career prep..."
                 className="flex-1 bg-surface-container dark:bg-surface-container-high border border-outline-variant/20 dark:border-outline/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-colors text-on-surface"
                 disabled={isLoading}
               />

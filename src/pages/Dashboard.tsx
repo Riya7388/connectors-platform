@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabase";
-import { Clock, CheckCircle2, XCircle, MessageSquare, ChevronRight, AlertCircle, Loader2 } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, MessageSquare, AlertCircle, Loader2 } from "lucide-react";
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
@@ -8,7 +8,6 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   const [isMentor, setIsMentor] = useState(false);
@@ -21,8 +20,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
   const fetchDashboardData = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
-
     if (user) {
       // 1. Fetch My Requests (Student side)
       const { data: studentRequests, error: studentReqError } = await supabase
