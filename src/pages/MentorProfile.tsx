@@ -111,26 +111,26 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     );
   }
 
-  const examCategoryStyles: Record<string, { bg: string; text: string; ring: string }> = {
-    JEE:     { bg: "bg-blue-500/20",   text: "text-blue-300",   ring: "ring-blue-500/40" },
-    NEET:    { bg: "bg-green-500/20",  text: "text-green-300",  ring: "ring-green-500/40" },
-    CA:      { bg: "bg-purple-500/20", text: "text-purple-300", ring: "ring-purple-500/40" },
-    UPSC:    { bg: "bg-orange-500/20", text: "text-orange-300", ring: "ring-orange-500/40" },
-    CAT:     { bg: "bg-pink-500/20",   text: "text-pink-300",   ring: "ring-pink-500/40" },
-    CLAT:    { bg: "bg-teal-500/20",   text: "text-teal-300",   ring: "ring-teal-500/40" },
-    Banking: { bg: "bg-yellow-500/20", text: "text-yellow-300", ring: "ring-yellow-500/40" },
-    Defense: { bg: "bg-red-500/20",    text: "text-red-300",    ring: "ring-red-500/40" },
-    CUET:    { bg: "bg-indigo-500/20", text: "text-indigo-300", ring: "ring-indigo-500/40" },
+  // ✅ STATIC complete class strings — Tailwind JIT can scan these at build time.
+  // DO NOT split into dynamic variables like `bg-${color}-500` — Tailwind won't detect those.
+  const examCategoryClass: Record<string, string> = {
+    JEE:     "bg-blue-500/20 text-blue-300 ring-blue-500/40",
+    NEET:    "bg-green-500/20 text-green-300 ring-green-500/40",
+    CA:      "bg-purple-500/20 text-purple-300 ring-purple-500/40",
+    UPSC:    "bg-orange-500/20 text-orange-300 ring-orange-500/40",
+    CAT:     "bg-pink-500/20 text-pink-300 ring-pink-500/40",
+    CLAT:    "bg-teal-500/20 text-teal-300 ring-teal-500/40",
+    Banking: "bg-yellow-500/20 text-yellow-300 ring-yellow-500/40",
+    Defense: "bg-red-500/20 text-red-300 ring-red-500/40",
+    CUET:    "bg-indigo-500/20 text-indigo-300 ring-indigo-500/40",
   };
 
   const renderExamBadge = (category?: string) => {
     if (!category) return null;
-    const style = examCategoryStyles[category] ?? { bg: "bg-surface-container-high", text: "text-on-surface-variant", ring: "ring-white/10" };
+    const cls = examCategoryClass[category] ?? "bg-white/10 text-white/60 ring-white/20";
     return (
       <span
-        className={`absolute top-6 right-6 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ring-1 shadow-sm ${
-          style.bg
-        } ${style.text} ${style.ring}`}
+        className={`absolute top-6 right-6 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ring-1 shadow-sm ${cls}`}
       >
         {category}
       </span>
