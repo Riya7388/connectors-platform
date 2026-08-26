@@ -111,6 +111,32 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     );
   }
 
+  const examCategoryStyles: Record<string, { bg: string; text: string; ring: string }> = {
+    JEE:     { bg: "bg-blue-500/20",   text: "text-blue-300",   ring: "ring-blue-500/40" },
+    NEET:    { bg: "bg-green-500/20",  text: "text-green-300",  ring: "ring-green-500/40" },
+    CA:      { bg: "bg-purple-500/20", text: "text-purple-300", ring: "ring-purple-500/40" },
+    UPSC:    { bg: "bg-orange-500/20", text: "text-orange-300", ring: "ring-orange-500/40" },
+    CAT:     { bg: "bg-pink-500/20",   text: "text-pink-300",   ring: "ring-pink-500/40" },
+    CLAT:    { bg: "bg-teal-500/20",   text: "text-teal-300",   ring: "ring-teal-500/40" },
+    Banking: { bg: "bg-yellow-500/20", text: "text-yellow-300", ring: "ring-yellow-500/40" },
+    Defense: { bg: "bg-red-500/20",    text: "text-red-300",    ring: "ring-red-500/40" },
+    CUET:    { bg: "bg-indigo-500/20", text: "text-indigo-300", ring: "ring-indigo-500/40" },
+  };
+
+  const renderExamBadge = (category?: string) => {
+    if (!category) return null;
+    const style = examCategoryStyles[category] ?? { bg: "bg-surface-container-high", text: "text-on-surface-variant", ring: "ring-white/10" };
+    return (
+      <span
+        className={`absolute top-6 right-6 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ring-1 shadow-sm ${
+          style.bg
+        } ${style.text} ${style.ring}`}
+      >
+        {category}
+      </span>
+    );
+  };
+
   const renderStars = (rating: number | null) => {
     if (rating === null) return <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">New Mentor</span>;
     return (
@@ -230,6 +256,9 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
         </button>
 
         <div className="glass-card rounded-[2rem] border border-white/10 p-8 sm:p-12 relative overflow-hidden">
+          {/* Exam Category Badge — top-right of card */}
+          {renderExamBadge(mentor.exam_category)}
+
           {/* Header Section */}
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="relative">
