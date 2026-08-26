@@ -333,6 +333,32 @@ const StarRating: React.FC<{ rating: number | null }> = ({ rating }) => {
   );
 };
 
+// ✅ STATIC complete class strings — Tailwind JIT can scan these at build time.
+// DO NOT split into dynamic variables like `bg-${color}-500` — Tailwind won't detect those.
+const examCategoryClass: Record<string, string> = {
+  JEE:     "bg-blue-500/20 text-blue-300 ring-blue-500/40",
+  NEET:    "bg-green-500/20 text-green-300 ring-green-500/40",
+  CA:      "bg-purple-500/20 text-purple-300 ring-purple-500/40",
+  UPSC:    "bg-orange-500/20 text-orange-300 ring-orange-500/40",
+  CAT:     "bg-pink-500/20 text-pink-300 ring-pink-500/40",
+  CLAT:    "bg-teal-500/20 text-teal-300 ring-teal-500/40",
+  Banking: "bg-yellow-500/20 text-yellow-300 ring-yellow-500/40",
+  Defense: "bg-red-500/20 text-red-300 ring-red-500/40",
+  CUET:    "bg-indigo-500/20 text-indigo-300 ring-indigo-500/40",
+};
+
+const renderExamBadge = (category?: string) => {
+  if (!category) return null;
+  const cls = examCategoryClass[category] ?? "bg-white/10 text-white/60 ring-white/20";
+  return (
+    <span
+      className={`absolute top-6 right-6 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ring-1 shadow-sm ${cls}`}
+    >
+      {category}
+    </span>
+  );
+};
+
 /* -------------------------------------------------
    Main Component
 ------------------------------------------------- */
@@ -1074,6 +1100,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
                   className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group"
                 >
+                  {renderExamBadge(mentor.exam_category)}
                   {/* Header */}
                   <div className="flex gap-4">
                     <img
