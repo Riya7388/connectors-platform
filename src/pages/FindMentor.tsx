@@ -48,6 +48,8 @@ interface Mentor {
   rating: number | null;
   is_online?: boolean;
   last_online_at?: string | null;
+  mentor_tag?: string | null;
+  mentor_tag_other?: string | null;
 }
 
 /* -------------------------------------------------
@@ -367,14 +369,25 @@ const examCategoryClass: Record<string, string> = {
   CUET:    "bg-indigo-500/20 text-indigo-300 ring-indigo-500/40",
 };
 
-const renderExamBadge = (category?: string) => {
-  if (!category) return null;
-  const cls = examCategoryClass[category] ?? "bg-white/10 text-white/60 ring-white/20";
+const renderMentorBadge = (mentor: Mentor) => {
+  const displayTag = mentor.mentor_tag
+    ? (mentor.mentor_tag === "Other" ? (mentor.mentor_tag_other || "Other") : mentor.mentor_tag)
+    : mentor.exam_category;
+
+  if (!displayTag) return null;
+
+  let cls = "bg-amber-500/20 text-amber-300 ring-amber-500/40";
+  if (mentor.mentor_tag && examCategoryClass[mentor.mentor_tag]) {
+    cls = examCategoryClass[mentor.mentor_tag];
+  } else if (!mentor.mentor_tag && mentor.exam_category && examCategoryClass[mentor.exam_category]) {
+    cls = examCategoryClass[mentor.exam_category];
+  }
+
   return (
     <span
       className={`absolute top-6 right-6 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ring-1 shadow-sm ${cls}`}
     >
-      {category}
+      {displayTag}
     </span>
   );
 };
@@ -1170,7 +1183,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
                   className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group"
                 >
-                  {renderExamBadge(mentor.exam_category)}
+                  {renderMentorBadge(mentor)}
                   {/* Header */}
                   <div className="flex gap-4">
                     <img

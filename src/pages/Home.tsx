@@ -1,5 +1,5 @@
 import React from "react";
-import { GraduationCap, Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck } from "lucide-react";
+import { GraduationCap, Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck, Compass } from "lucide-react";
 import PricingSection from "../components/PricingSection";
 import HowItWorks from "../components/HowItWorks";
 
@@ -122,9 +122,9 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-2">
                       <ShieldCheck size={24} />
                     </div>
-                    <h3 className="text-xl font-bold">Verified Mentors, Every Exam</h3>
+                    <h3 className="text-xl font-bold">Verified Mentors, Every Field</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      From JEE to UPSC to CA — every mentor is a verified senior or qualified professional in their field.
+                      From education to careers and professional growth — connect with verified seniors, professionals, and experienced mentors.
                     </p>
                   </div>
                   <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-secondary/20 hover:border-secondary-fixed-dim/50 hover:bg-secondary-fixed-dim/5 transition-all duration-300 neon-glow-hover cursor-default">
@@ -142,7 +142,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                     </div>
                     <h3 className="text-xl font-bold">Personalized 1-on-1 Sessions</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      Chat with your mentor, agree on a time, and connect via Google Meet — real conversations, not generic advice.
+                      Chat with your mentor, agree on a time, and connect via Google Meet — real conversations, personalized to your goals.
                     </p>
                   </div>
                 </React.Fragment>
@@ -157,11 +157,11 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                 <React.Fragment key={i}>
                   <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 neon-glow-hover cursor-default">
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mb-2">
-                      <GraduationCap size={24} />
+                      <Compass size={24} />
                     </div>
-                    <h3 className="text-xl font-bold">Every Major Competitive Exam</h3>
+                    <h3 className="text-xl font-bold">Guidance for Every Journey</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      JEE, NEET, CA, CAT, UPSC, CLAT, Banking, Defense, CUET — mentors across every path, not just engineering.
+                      Get guidance for education, career decisions, skills, entrepreneurship, and professional growth — all in one place.
                     </p>
                   </div>
                   <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-secondary/20 hover:border-secondary-fixed-dim/50 hover:bg-secondary-fixed-dim/5 transition-all duration-300 neon-glow-hover cursor-default">
@@ -170,7 +170,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                     </div>
                     <h3 className="text-xl font-bold">Free Intro Sessions</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      Try before you commit — many mentors offer a free first session to see if you're a good fit.
+                      Try before you commit — many mentors offer a free first session to help you find the right fit.
                     </p>
                   </div>
                   <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-tertiary/20 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all duration-300 neon-glow-hover cursor-default">
@@ -179,7 +179,7 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                     </div>
                     <h3 className="text-xl font-bold">Rated & Reviewed</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      Every session is rated by real students, so you always know who to trust.
+                      Every session is rated by the community, helping you discover trusted mentors and make confident decisions.
                     </p>
                   </div>
                 </React.Fragment>

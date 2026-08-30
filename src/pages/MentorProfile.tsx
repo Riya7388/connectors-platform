@@ -8,7 +8,8 @@ import {
   ChevronLeft,
   GraduationCap,
   X,
-  Loader2
+  Loader2,
+  Trophy
 } from "lucide-react";
 
 interface Mentor {
@@ -36,6 +37,9 @@ interface Mentor {
   is_online?: boolean;
   last_online_at?: string | null;
   availability_time?: string | null;
+  achievements?: string[] | null;
+  mentor_tag?: string | null;
+  mentor_tag_other?: string | null;
 }
 
 interface MentorProfileProps {
@@ -128,14 +132,25 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     CUET:    "bg-indigo-500/20 text-indigo-300 ring-indigo-500/40",
   };
 
-  const renderExamBadge = (category?: string) => {
-    if (!category) return null;
-    const cls = examCategoryClass[category] ?? "bg-white/10 text-white/60 ring-white/20";
+  const renderMentorBadge = (m: Mentor) => {
+    const displayTag = m.mentor_tag
+      ? (m.mentor_tag === "Other" ? (m.mentor_tag_other || "Other") : m.mentor_tag)
+      : m.exam_category;
+
+    if (!displayTag) return null;
+
+    let cls = "bg-amber-500/20 text-amber-300 ring-amber-500/40";
+    if (m.mentor_tag && examCategoryClass[m.mentor_tag]) {
+      cls = examCategoryClass[m.mentor_tag];
+    } else if (!m.mentor_tag && m.exam_category && examCategoryClass[m.exam_category]) {
+      cls = examCategoryClass[m.exam_category];
+    }
+
     return (
       <span
         className={`absolute top-6 right-6 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ring-1 shadow-sm ${cls}`}
       >
-        {category}
+        {displayTag}
       </span>
     );
   };
@@ -274,8 +289,8 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
         </button>
 
         <div className="glass-card rounded-[2rem] border border-white/10 p-8 sm:p-12 relative overflow-hidden">
-          {/* Exam Category Badge — top-right of card */}
-          {renderExamBadge(mentor.exam_category)}
+          {/* Mentor Tag / Category Badge — top-right of card */}
+          {renderMentorBadge(mentor)}
 
           {/* Header Section */}
           <div className="flex flex-col items-center text-center space-y-6">
@@ -367,15 +382,42 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
 
           {/* Details Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            {/* Bio */}
-            <div className="md:col-span-2 space-y-4">
-              <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
-                <MessageCircle className="text-primary" size={20} />
-                About {mentor.full_name.split(' ')[0]}
-              </h3>
-              <div className="text-on-surface-variant leading-relaxed space-y-4 whitespace-pre-wrap bg-surface-container-low/50 p-6 rounded-2xl border border-white/5">
-                {mentor.bio ? mentor.bio : "This mentor hasn't added a bio yet."}
+            {/* Bio & Achievements */}
+            <div className="md:col-span-2 space-y-8">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                  <MessageCircle className="text-primary" size={20} />
+                  About {mentor.full_name.split(' ')[0]}
+                </h3>
+                <div className="text-on-surface-variant leading-relaxed space-y-4 whitespace-pre-wrap bg-surface-container-low/50 p-6 rounded-2xl border border-white/5">
+                  {mentor.bio ? mentor.bio : "This mentor hasn't added a bio yet."}
+                </div>
               </div>
+
+              {/* Achievements (rendered only if present and non-empty) */}
+              {mentor.achievements && mentor.achievements.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                    <Trophy className="text-amber-400" size={20} />
+                    Key Achievements
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {mentor.achievements.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3 bg-surface-container-low/50 p-4 rounded-xl border border-white/5 hover:border-amber-400/20 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+                          {idx + 1}
+                        </div>
+                        <p className="text-sm text-on-surface-variant leading-relaxed font-medium">
+                          {item}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sidebar Details */}

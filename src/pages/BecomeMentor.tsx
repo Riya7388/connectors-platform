@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { 
   DollarSign, HelpingHand, User, Mail, Phone, Search,
-  CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone
+  CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone,
+  Trophy, Plus, Trash2, Tag
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
@@ -18,6 +19,22 @@ declare global {
     recaptchaVerifier: any;
   }
 }
+
+const EXAM_TAGS = [
+  "JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET"
+];
+
+const PROFESSIONAL_TAGS = [
+  "Industry Expert",
+  "Career Mentor",
+  "Startup Founder",
+  "Tech Lead / Engineering Manager",
+  "Product Manager",
+  "Business Consultant",
+  "HR Professional",
+  "Marketing Professional",
+  "Finance Professional"
+];
 
 // --- Schema Definition ---
 const mentorSchema = z.object({
@@ -74,6 +91,8 @@ const mentorSchema = z.object({
   upiId: z.string().optional(),
   availabilityTime: z.string().optional(),
   customAvailability: z.string().optional(),
+  mentorTag: z.string().optional(),
+  mentorTagOther: z.string().optional(),
   bio: z.string().min(50, "Bio must be at least 50 characters").max(1000, "Bio must be under 1000 characters")
 }).superRefine((data, ctx) => {
   // Exam Category Conditional Validation
@@ -176,6 +195,31 @@ export const BecomeMentor: React.FC = () => {
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [timer, setTimer] = useState(0);
 
+  // Achievements State (Max 5, 30 words each)
+  const [achievements, setAchievements] = useState<string[]>([]);
+
+  const getWordCount = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).length;
+  };
+
+  const handleAddAchievement = () => {
+    if (achievements.length < 5) {
+      setAchievements([...achievements, ""]);
+    }
+  };
+
+  const handleRemoveAchievement = (index: number) => {
+    setAchievements(achievements.filter((_, i) => i !== index));
+  };
+
+  const handleAchievementChange = (index: number, val: string) => {
+    const updated = [...achievements];
+    updated[index] = val;
+    setAchievements(updated);
+  };
+
   const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
     resolver: zodResolver(mentorSchema) as any,
     mode: "all",
@@ -188,7 +232,9 @@ export const BecomeMentor: React.FC = () => {
       prices: {},
       bio: "",
       availabilityTime: "",
-      customAvailability: ""
+      customAvailability: "",
+      mentorTag: "",
+      mentorTagOther: ""
     }
   });
 
@@ -202,6 +248,7 @@ export const BecomeMentor: React.FC = () => {
 
   const watchBio = watch("bio") || "";
   const watchAvailabilityTime = watch("availabilityTime");
+  const watchMentorTag = watch("mentorTag");
 
   // Fetch branches from DB
   useEffect(() => {
@@ -330,6 +377,17 @@ export const BecomeMentor: React.FC = () => {
         return;
       }
 
+      // Validate achievements word count (max 30 words per item)
+      const cleanedAchievements = achievements
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0);
+
+      if (cleanedAchievements.some((a) => getWordCount(a) > 30)) {
+        alert("Each achievement must be 30 words or less. Please review and try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('mentors').insert([
         {
           user_id: user.id,
@@ -375,6 +433,9 @@ export const BecomeMentor: React.FC = () => {
           upi_id: data.upiId,
           bio: data.bio,
           availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
+          mentor_tag: data.mentorTag || null,
+          mentor_tag_other: data.mentorTag === 'Other' ? (data.mentorTagOther || null) : null,
+          achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
           application_status: 'pending'
         }
       ]);
@@ -603,6 +664,110 @@ export const BecomeMentor: React.FC = () => {
                       placeholder="Tell students about yourself — your journey, what you can help with, and why they should connect with you."
                     ></textarea>
                     {errors.bio && <p className="text-xs text-red-500">{errors.bio.message}</p>}
+                  </div>
+
+                  {/* Tag Yourself (Independent Field) */}
+                  <div className="space-y-2 mt-6">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                      <Tag size={14} className="text-primary" />
+                      Tag Yourself (Optional)
+                    </label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1">
+                      Choose a primary badge that represents your background on your profile and search cards.
+                    </p>
+                    <select
+                      {...register("mentorTag")}
+                      className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface"
+                    >
+                      <option value="">Select Tag (Optional)</option>
+                      <optgroup label="Exam Categories">
+                        {EXAM_TAGS.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Professional / Career">
+                        {PROFESSIONAL_TAGS.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <option value="Other">Other</option>
+                    </select>
+                    {watchMentorTag === "Other" && (
+                      <div className="mt-2 animate-fade-in">
+                        <input
+                          {...register("mentorTagOther")}
+                          className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-2.5 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none"
+                          placeholder="Enter your custom tag (e.g. AI Researcher, Startup Consultant)"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Achievements Section */}
+                  <div className="space-y-3 mt-6 pt-6 border-t border-outline-variant/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                          <Trophy size={14} className="text-amber-400" />
+                          Key Achievements (Optional, Max 5)
+                        </label>
+                        <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                          Highlight your top milestones, awards, ranks, or accomplishments (up to 30 words each).
+                        </p>
+                      </div>
+                      {achievements.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={handleAddAchievement}
+                          className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors shrink-0 w-fit"
+                        >
+                          <Plus size={14} /> Add Achievement
+                        </button>
+                      )}
+                    </div>
+
+                    {achievements.length > 0 && (
+                      <div className="space-y-3 mt-2">
+                        {achievements.map((ach, idx) => {
+                          const words = getWordCount(ach);
+                          const isOverLimit = words > 30;
+                          return (
+                            <div key={idx} className="bg-surface-container-low/30 p-3.5 rounded-xl border border-outline-variant/20 space-y-2 animate-fade-in">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-semibold text-on-surface">Achievement #{idx + 1}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className={isOverLimit ? "text-red-500 font-bold" : "text-on-surface-variant/70 font-medium"}>
+                                    {words} / 30 words
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAchievement(idx)}
+                                    className="text-on-surface-variant/50 hover:text-red-400 p-1 rounded transition-colors"
+                                    title="Remove achievement"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <input
+                                type="text"
+                                value={ach}
+                                onChange={(e) => handleAchievementChange(idx, e.target.value)}
+                                className={`w-full bg-surface-container-low/60 border ${isOverLimit ? 'border-red-500' : 'border-outline-variant/30'} px-3.5 py-2.5 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`}
+                                placeholder="e.g. Secured AIR 42 in JEE Advanced 2023 / Led $2M seed round"
+                              />
+                              {isOverLimit && (
+                                <p className="text-[11px] text-red-500 font-medium">Please keep this achievement under 30 words (currently {words} words).</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
