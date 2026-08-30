@@ -44,13 +44,14 @@ function App() {
       setSession(session);
       setSessionLoading(false);
 
-      // Post-login redirect: check mentor table
+      // Post-login redirect: check mentor table (robust against multiple mentor profiles)
       if (session?.user) {
-        const { data: mentor } = await supabase
+        const { data: mentors } = await supabase
           .from("mentors")
           .select("application_status")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
+          .eq("user_id", session.user.id);
+
+        const mentor = mentors?.find(m => m.application_status === "approved") || mentors?.[0] || null;
 
         if (mentor && mentor.application_status !== "approved") {
           // In-progress mentor application → resume

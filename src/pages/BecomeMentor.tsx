@@ -72,6 +72,8 @@ const mentorSchema = z.object({
   ifscCode: z.string().optional(),
   accountHolder: z.string().optional(),
   upiId: z.string().optional(),
+  availabilityTime: z.string().optional(),
+  customAvailability: z.string().optional(),
   bio: z.string().min(50, "Bio must be at least 50 characters").max(1000, "Bio must be under 1000 characters")
 }).superRefine((data, ctx) => {
   // Exam Category Conditional Validation
@@ -184,7 +186,9 @@ export const BecomeMentor: React.FC = () => {
       payoutMethod: "upi",
       freeIntro: true,
       prices: {},
-      bio: ""
+      bio: "",
+      availabilityTime: "",
+      customAvailability: ""
     }
   });
 
@@ -197,6 +201,7 @@ export const BecomeMentor: React.FC = () => {
   const watchSessionDurations = watch("sessionDurations") || [];
 
   const watchBio = watch("bio") || "";
+  const watchAvailabilityTime = watch("availabilityTime");
 
   // Fetch branches from DB
   useEffect(() => {
@@ -311,6 +316,20 @@ export const BecomeMentor: React.FC = () => {
         return;
       }
 
+      // Check if this user has already submitted a mentor application
+      const { data: existingMentor } = await supabase
+        .from('mentors')
+        .select('application_status')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existingMentor) {
+        const currentStatus = existingMentor.application_status || 'submitted';
+        alert(`Aapne already ek mentor application submit ki hai — status: ${currentStatus}.\nAgar aap apni details update karna chahte hain, please contact support.`);
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('mentors').insert([
         {
           user_id: user.id,
@@ -355,11 +374,25 @@ export const BecomeMentor: React.FC = () => {
           bank_account_holder: data.accountHolder,
           upi_id: data.upiId,
           bio: data.bio,
+          availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
           application_status: 'pending'
         }
       ]);
 
       if (error) {
+        // Handle unique constraint violation on mentors.user_id gracefully
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('mentors_user_id_unique')) {
+          const { data: latestMentor } = await supabase
+            .from('mentors')
+            .select('application_status')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          const currentStatus = latestMentor?.application_status || 'submitted';
+          alert(`Aapne already ek mentor application submit ki hai — status: ${currentStatus}.\nAgar aap apni details update karna chahte hain, please contact support.`);
+          return;
+        }
+
         console.error("Failed to submit application:", error);
         alert("Something went wrong submitting your application — please try again.");
         return;
@@ -1268,6 +1301,25 @@ export const BecomeMentor: React.FC = () => {
                       <input type="checkbox" {...register("freeIntro")} className="sr-only peer" />
                       <div className="w-11 h-6 bg-surface-container rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">When are you usually free?</label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1">Help students know the best time to reach you</p>
+                    <select {...register("availabilityTime")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface">
+                      <option value="">Select Availability (Optional)</option>
+                      <option value="Morning (6 AM - 12 PM)">Morning (6 AM - 12 PM)</option>
+                      <option value="Afternoon (12 PM - 5 PM)">Afternoon (12 PM - 5 PM)</option>
+                      <option value="Evening (5 PM - 9 PM)">Evening (5 PM - 9 PM)</option>
+                      <option value="Night (9 PM - 12 AM)">Night (9 PM - 12 AM)</option>
+                      <option value="Weekdays Evening">Weekdays Evening</option>
+                      <option value="Weekends Anytime">Weekends Anytime</option>
+                      <option value="Flexible / Varies">Flexible / Varies</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                    {watchAvailabilityTime === "Custom" && (
+                      <input {...register("customAvailability")} className="mt-2 w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="Describe your schedule, e.g. Mon/Wed 7-9 PM" />
+                    )}
                   </div>
                 </div>
 

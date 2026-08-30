@@ -33,6 +33,9 @@ interface Mentor {
   free_intro_session: boolean;
   rating: number | null;
   city: string;
+  is_online?: boolean;
+  last_online_at?: string | null;
+  availability_time?: string | null;
 }
 
 interface MentorProfileProps {
@@ -150,6 +153,21 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
   const getStatus = (gradYear: number) => {
     const currentYear = new Date().getFullYear();
     return gradYear > currentYear ? "Student" : "Alumni";
+  };
+
+  const formatLastSeen = (isoDate: string | null | undefined): string | null => {
+    if (!isoDate) return null;
+    const now = Date.now();
+    const then = new Date(isoDate).getTime();
+    const diffMs = now - then;
+    if (diffMs < 0) return null;
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
   };
 
   const formatPricing = (prices: Record<string, string> | null) => {
@@ -279,7 +297,19 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
             </div>
 
             <div className="space-y-2 max-w-2xl">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-on-surface">{mentor.full_name}</h1>
+              <div className="flex items-center justify-center gap-3">
+                <h1 className="text-3xl sm:text-4xl font-extrabold text-on-surface">{mentor.full_name}</h1>
+                {mentor.is_online ? (
+                  <span className="flex items-center gap-1.5 bg-green-500/15 border border-green-500/25 text-green-400 px-3 py-1 rounded-full text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    Online
+                  </span>
+                ) : mentor.last_online_at ? (
+                  <span className="text-xs text-on-surface-variant/60 font-medium">
+                    Last seen {formatLastSeen(mentor.last_online_at)}
+                  </span>
+                ) : null}
+              </div>
               <p className="text-on-surface-variant text-base sm:text-lg flex flex-wrap items-center justify-center gap-2">
                 <GraduationCap size={18} className="text-primary/70" />
                 <span>{mentor.college_name}</span>
@@ -306,6 +336,12 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
               <div className="flex items-center gap-1.5 bg-surface-container px-4 py-1.5 rounded-full border border-white/5 text-sm font-medium">
                 {getStatus(mentor.graduation_year)}
               </div>
+              {mentor.availability_time && (
+                <div className="flex items-center gap-1.5 bg-surface-container px-4 py-1.5 rounded-full border border-white/5 text-sm">
+                  <span>🕒</span>
+                  <span>Free: {mentor.availability_time}</span>
+                </div>
+              )}
             </div>
 
             <div className="pt-4 space-y-3 w-full">

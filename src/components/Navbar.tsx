@@ -21,6 +21,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isMentor, setIsMentor] = useState(false);
+  const [mentorProfile, setMentorProfile] = useState<any>(null);
 
   useEffect(() => {
     // Get initial session
@@ -37,6 +39,60 @@ export const Navbar: React.FC<NavbarProps> = ({
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setIsMentor(false);
+      setMentorProfile(null);
+      return;
+    }
+
+    const checkMentorStatus = async () => {
+      const { data: mentorProfiles } = await supabase
+        .from("mentors")
+        .select("*")
+        .eq("user_id", user.id);
+
+      const approvedMentor = mentorProfiles?.find(m => m.application_status === "approved");
+
+      if (approvedMentor) {
+        setIsMentor(true);
+        setMentorProfile(approvedMentor);
+      } else {
+        setIsMentor(false);
+        setMentorProfile(null);
+      }
+    };
+
+    checkMentorStatus();
+  }, [user]);
+
+  const handleToggleOnline = async (checked: boolean) => {
+    if (!mentorProfile) return;
+    const nowStr = new Date().toISOString();
+    
+    // Optimistic UI update
+    setMentorProfile((prev: any) => prev ? { ...prev, is_online: checked, last_online_at: nowStr } : null);
+
+    const { data, error } = await supabase
+      .from("mentors")
+      .update({
+        is_online: checked,
+        last_online_at: nowStr
+      })
+      .eq("id", mentorProfile.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating online status:", error);
+      alert("Failed to update status.");
+      // Rollback
+      setMentorProfile((prev: any) => prev ? { ...prev, is_online: !checked } : null);
+    } else if (data) {
+      setMentorProfile(data);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -152,6 +208,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
+
+          {/* Mentor Availability Toggle (Desktop/Tablet) */}
+          {user && isMentor && mentorProfile && (
+            <div className="hidden md:flex items-center gap-2 bg-surface-container-low dark:bg-surface-container/50 px-3 py-1.5 rounded-full border border-outline-variant/20 dark:border-outline/10 text-xs font-semibold shadow-sm transition-all duration-200">
+              <span className={`w-2 h-2 rounded-full ${mentorProfile.is_online ? 'bg-green-500 animate-pulse' : 'bg-on-surface-variant/40'}`}></span>
+              <span className="text-on-surface select-none hidden lg:inline-block">
+                {mentorProfile.is_online ? "Available" : "Offline"}
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer ml-1">
+                <input 
+                  type="checkbox" 
+                  checked={!!mentorProfile.is_online}
+                  onChange={(e) => handleToggleOnline(e.target.checked)}
+                  className="sr-only peer" 
+                />
+                <div className="w-9 h-5 bg-surface-container-high rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
+          )}
 
           {user ? (
             /* ---- Authenticated: Profile Dropdown ---- */
@@ -317,6 +392,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-xs text-on-surface-variant truncate">{user.email}</p>
                   </div>
                 </div>
+
+                {/* Mobile availability toggle */}
+                {isMentor && mentorProfile && (
+                  <div className="flex items-center justify-between px-3 py-2.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${mentorProfile.is_online ? 'bg-green-500 animate-pulse' : 'bg-on-surface-variant/40'}`}></span>
+                      <span className="text-sm font-semibold text-on-surface">
+                        {mentorProfile.is_online ? "I'm Available Now" : "I'm Offline"}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={!!mentorProfile.is_online}
+                        onChange={(e) => handleToggleOnline(e.target.checked)}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-9 h-5 bg-surface-container rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                  </div>
+                )}
 
                 <button
                   onClick={() => {

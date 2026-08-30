@@ -46,6 +46,8 @@ interface Mentor {
   languages_known: string[] | null;
   free_intro_session: boolean;
   rating: number | null;
+  is_online?: boolean;
+  last_online_at?: string | null;
 }
 
 /* -------------------------------------------------
@@ -94,6 +96,24 @@ function getMinPrice(pricing: Record<string, string> | null): number | null {
     .map((v) => parseFloat(v))
     .filter((n) => !isNaN(n));
   return values.length > 0 ? Math.min(...values) : null;
+}
+
+/* -------------------------------------------------
+   Helper: relative "last seen" text
+------------------------------------------------- */
+function formatLastSeen(isoDate: string | null | undefined): string | null {
+  if (!isoDate) return null;
+  const now = Date.now();
+  const then = new Date(isoDate).getTime();
+  const diffMs = now - then;
+  if (diffMs < 0) return null;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 /* -------------------------------------------------
@@ -634,9 +654,59 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
     setSelectedRating(null);
   }, []);
 
+  /* ------------------- Online Mentors (derived from full list) ------------------- */
+  const onlineMentors = useMemo(() => mentors.filter(m => m.is_online), [mentors]);
+
   /* ------------------- UI ------------------- */
   return (
     <div className="min-h-screen bg-background py-10">
+
+      {/* 🟢 Online Mentors Quick-Access Row — above the sidebar+grid layout */}
+      {!loading && onlineMentors.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-8">
+          <div className="glass-card rounded-2xl p-5 border border-green-500/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-green-500/5 rounded-full blur-[60px] pointer-events-none"></div>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-green-400 mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              Online Now
+            </h3>
+            <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar -mx-1 px-1">
+              {onlineMentors.map((mentor) => (
+                <div
+                  key={mentor.id}
+                  onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
+                  className="flex-shrink-0 w-48 bg-surface-container-low/60 border border-white/5 rounded-xl p-4 cursor-pointer hover:border-green-500/30 hover:-translate-y-0.5 transition-all group"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="relative">
+                      <img
+                        src={mentor.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(mentor.full_name || "M")}`}
+                        alt={mentor.full_name}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?size=128&background=cccccc&color=ffffff&name=${encodeURIComponent(mentor.full_name || "M")}`; }}
+                        className="h-10 w-10 rounded-full object-cover border-2 border-green-500/40"
+                      />
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-surface-container-low"></span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-on-surface truncate">{mentor.full_name}</p>
+                      <p className="text-[10px] text-green-400 font-medium">Online</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-on-surface-variant truncate">
+                    {mentor.college_name}
+                  </p>
+                  {mentor.rating !== null && (
+                    <div className="mt-1">
+                      <StarRating rating={mentor.rating} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:flex-row gap-8">
         {/* Mobile Filter Toggle */}
         <button
@@ -1130,6 +1200,12 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                             className="text-primary fill-primary/10 flex-shrink-0"
                           />
                         )}
+                        {mentor.is_online && (
+                          <span className="flex-shrink-0 flex items-center gap-1 bg-green-500/15 text-green-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            Online
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">
                         {mentor.college_name} • {mentor.exam_category === 'CA' ? mentor.ca_stage :
@@ -1145,6 +1221,9 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                         </p>
                         {mentor.rating !== null && (
                           <StarRating rating={mentor.rating} />
+                        )}
+                        {!mentor.is_online && mentor.last_online_at && (
+                          <span className="text-[10px] text-on-surface-variant/60">Last seen {formatLastSeen(mentor.last_online_at)}</span>
                         )}
                       </div>
                     </div>

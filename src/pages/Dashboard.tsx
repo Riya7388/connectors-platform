@@ -56,23 +56,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
         setMyRequests([]);
       }
 
-      // 2. Check if user is an approved mentor
-      const { data: mentorData } = await supabase
+      // 2. Check if user is an approved mentor (robust against multiple mentor profiles)
+      const { data: mentorProfiles } = await supabase
         .from("mentors")
         .select("*")
-        .eq("user_id", user.id)
-        .eq("application_status", "approved")
-        .maybeSingle();
+        .eq("user_id", user.id);
 
-      if (mentorData) {
+      const approvedMentor = mentorProfiles?.find(m => m.application_status === "approved");
+
+      if (approvedMentor) {
         setIsMentor(true);
-        setMentorProfile(mentorData);
+        setMentorProfile(approvedMentor);
 
         // 3. Fetch Incoming Requests (Mentor side)
         const { data: mentorRequests } = await supabase
           .from("booking_requests")
           .select("*")
-          .eq("mentor_id", mentorData.id)
+          .eq("mentor_id", approvedMentor.id)
           .order("created_at", { ascending: false });
 
         if (mentorRequests) setIncomingRequests(mentorRequests);
@@ -107,6 +107,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
       fetchDashboardData();
     }
   };
+
 
   const isExpired = (request: any) => {
     if (request.status !== "pending" && request.status !== "accepted") return false;
@@ -168,6 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background p-6 max-w-5xl mx-auto space-y-12 animate-fade-in pb-20">
       
+
       {/* Student: My Requests */}
       <div className="space-y-6 pt-6">
         <h2 className="text-2xl font-bold text-on-surface flex items-center gap-2">

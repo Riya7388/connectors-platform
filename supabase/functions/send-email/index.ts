@@ -41,9 +41,9 @@ serve(async (req) => {
 
     // Helper to get mentor user_id from mentor table if mentorId is the mentor table UUID
     const getMentorUserId = async (mid: string) => {
-      const { data, error } = await supabaseAdmin.from('mentors').select('user_id, full_name').eq('id', mid).single()
+      const { data, error } = await supabaseAdmin.from('mentors').select('user_id, full_name, is_online').eq('id', mid).single()
       if (error || !data) throw new Error(`Mentor not found: ${mid}`)
-      return { user_id: data.user_id, name: data.full_name }
+      return { user_id: data.user_id, name: data.full_name, is_online: data.is_online }
     }
 
     let to = []
@@ -57,7 +57,8 @@ serve(async (req) => {
 
       to = [mentor.email]
       subject = `New Mentorship Request from ${student.name}`
-      html = `<p>Hi ${mentorData.name},</p><p>You have a new mentorship request from <strong>${student.name}</strong> on Connectors.</p><p>Log in to view and accept the request.</p>`
+      const onlineNote = mentorData.is_online ? `<p><em>(Note: This mentor is currently online and available!)</em></p>` : ''
+      html = `<p>Hi ${mentorData.name},</p><p>You have a new mentorship request from <strong>${student.name}</strong> on Connectors.</p>${onlineNote}<p>Log in to view and accept the request.</p>`
     } 
     else if (type === 'request_accepted') {
       const student = await getUserData(studentId)
