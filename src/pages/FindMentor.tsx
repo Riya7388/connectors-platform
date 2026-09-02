@@ -16,6 +16,11 @@ import {
   Globe,
 } from "lucide-react";
 import { supabase } from "../supabase";
+import {
+  AREAS_OF_EXPERTISE,
+  PRESET_EXPERTISE_OPTIONS,
+  LANGUAGES as LANGUAGE_OPTIONS,
+} from "../constants/mentorConstants";
 
 /* -------------------------------------------------
    Types
@@ -50,37 +55,19 @@ interface Mentor {
   last_online_at?: string | null;
   mentor_tag?: string | null;
   mentor_tag_other?: string | null;
+  expertise_other?: string | null;
+  goals?: string[] | null;
 }
 
 /* -------------------------------------------------
    Constants
 ------------------------------------------------- */
-const EXPERTISE_OPTIONS = [
-  "Exam Strategy & Study Plan",
-  "Interview Prep",
-  "Career Counselling",
-  "Mock Tests & Practice",
-  "Motivation & Mindset Coaching",
-  "College/Institute Selection",
-  "Doubt Solving / Subject Help",
-  "Time Management",
-];
+const EXPERTISE_OPTIONS = AREAS_OF_EXPERTISE;
 
 const PRICE_RANGES = [
   { label: "₹0 – ₹200", min: 0, max: 200 },
   { label: "₹200 – ₹500", min: 200, max: 500 },
   { label: "₹500 – ₹1000", min: 500, max: 1000 },
-];
-
-const LANGUAGE_OPTIONS = [
-  "English",
-  "Hindi",
-  "Telugu",
-  "Tamil",
-  "Kannada",
-  "Malayalam",
-  "Marathi",
-  "Bengali",
 ];
 
 const RATING_OPTIONS = [
@@ -580,7 +567,15 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
       const matchesExpertise =
         selectedExpertise.length === 0 ||
         (m.areas_of_expertise &&
-          m.areas_of_expertise.some((e) => selectedExpertise.includes(e)));
+          m.areas_of_expertise.some((e) => {
+            if (selectedExpertise.includes(e)) return true;
+            if (selectedExpertise.includes("Other")) {
+              // Matches if mentor has custom expertise not in preset 15
+              if (!PRESET_EXPERTISE_OPTIONS.includes(e as any)) return true;
+            }
+            return false;
+          })) ||
+        (selectedExpertise.includes("Other") && !!m.expertise_other);
 
       // 5. Price range
       let matchesPrice = true;

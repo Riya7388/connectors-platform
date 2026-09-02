@@ -5,10 +5,11 @@ import * as z from "zod";
 import { 
   DollarSign, HelpingHand, User, Mail, Phone, Search,
   CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone,
-  Trophy, Plus, Trash2, Tag
+  Trophy, Plus, Trash2, Tag, Target
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
+import { AREAS_OF_EXPERTISE, LANGUAGES } from "../constants/mentorConstants";
 
 // For Firebase OTP
 import { auth } from "../lib/firebase";
@@ -80,6 +81,7 @@ const mentorSchema = z.object({
   
   languages: z.array(z.string()).min(1, "Select at least one language"),
   areasOfExpertise: z.array(z.string()).min(1, "Select at least one area of expertise"),
+  expertiseOther: z.string().optional(),
   sessionDurations: z.array(z.string()).min(1, "Select at least one session duration"),
   prices: z.record(z.string(), z.string()).optional(),
   freeIntro: z.boolean().default(false),
@@ -151,7 +153,6 @@ const mentorSchema = z.object({
 
 type MentorFormValues = z.infer<typeof mentorSchema>;
 
-const LANGUAGES = ["English", "Hindi", "Telugu", "Tamil", "Kannada", "Malayalam", "Marathi", "Bengali"];
 const DURATIONS = ["15 min", "30 min", "60 min"];
 const DEGREE_TYPES = ["B.Tech", "M.Tech", "BSc", "BCA", "MCA", "Other"];
 const EXAM_CATEGORIES = ["JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET", "Other"];
@@ -161,16 +162,6 @@ const NEET_COURSES = ["MBBS", "BDS", "BAMS", "BHMS", "Other"];
 const BANKING_EXAMS = ["SBI PO", "SBI Clerk", "IBPS PO", "IBPS Clerk", "RBI Grade B", "Other"];
 const DEFENSE_EXAMS = ["NDA", "CDS", "AFCAT", "Other"];
 const PREP_STAGES = ["Just Starting", "1+ Year Experience", "Repeater", "Qualified & Working", "Not Applicable"];
-const AREAS_OF_EXPERTISE = [
-  "Exam Strategy & Study Plan",
-  "Interview Prep",
-  "Career Counselling",
-  "Mock Tests & Practice",
-  "Motivation & Mindset Coaching",
-  "College/Institute Selection",
-  "Doubt Solving / Subject Help",
-  "Time Management"
-];
 
 export const BecomeMentor: React.FC = () => {
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -198,6 +189,9 @@ export const BecomeMentor: React.FC = () => {
   // Achievements State (Max 5, 30 words each)
   const [achievements, setAchievements] = useState<string[]>([]);
 
+  // Goals & Targets State (Max 3, 30 words each)
+  const [goals, setGoals] = useState<string[]>([]);
+
   const getWordCount = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return 0;
@@ -220,12 +214,29 @@ export const BecomeMentor: React.FC = () => {
     setAchievements(updated);
   };
 
+  const handleAddGoal = () => {
+    if (goals.length < 3) {
+      setGoals([...goals, ""]);
+    }
+  };
+
+  const handleRemoveGoal = (index: number) => {
+    setGoals(goals.filter((_, i) => i !== index));
+  };
+
+  const handleGoalChange = (index: number, val: string) => {
+    const updated = [...goals];
+    updated[index] = val;
+    setGoals(updated);
+  };
+
   const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
     resolver: zodResolver(mentorSchema) as any,
     mode: "all",
     defaultValues: {
       languages: [],
       areasOfExpertise: [],
+      expertiseOther: "",
       sessionDurations: [],
       payoutMethod: "upi",
       freeIntro: true,
@@ -245,6 +256,7 @@ export const BecomeMentor: React.FC = () => {
   const watchPhone = watch("phone");
   const watchPayoutMethod = watch("payoutMethod");
   const watchSessionDurations = watch("sessionDurations") || [];
+  const watchAreasOfExpertise = watch("areasOfExpertise") || [];
 
   const watchBio = watch("bio") || "";
   const watchAvailabilityTime = watch("availabilityTime");
@@ -388,6 +400,28 @@ export const BecomeMentor: React.FC = () => {
         return;
       }
 
+      // Validate goals word count (max 30 words per item)
+      const cleanedGoals = goals
+        .map((g) => g.trim())
+        .filter((g) => g.length > 0);
+
+      if (cleanedGoals.some((g) => getWordCount(g) > 30)) {
+        alert("Each goal must be 30 words or less. Please review and try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Handle areas of expertise: replace "Other" with custom text if provided
+      const customExpertise = data.expertiseOther?.trim();
+      const cleanedExpertise = (data.areasOfExpertise || [])
+        .map((item) => {
+          if (item === "Other") {
+            return customExpertise || "";
+          }
+          return item;
+        })
+        .filter((item) => item.length > 0);
+
       const { error } = await supabase.from('mentors').insert([
         {
           user_id: user.id,
@@ -422,6 +456,8 @@ export const BecomeMentor: React.FC = () => {
           student_id_front_url: data.studentIdFrontUrl,
           student_id_back_url: data.studentIdBackUrl,
           linkedin_url: data.linkedinUrl,
+          areas_of_expertise: cleanedExpertise.length > 0 ? cleanedExpertise : null,
+          expertise_other: customExpertise || null,
           languages_known: data.languages,
           session_durations: data.sessionDurations,
           pricing: data.prices,
@@ -436,6 +472,7 @@ export const BecomeMentor: React.FC = () => {
           mentor_tag: data.mentorTag || null,
           mentor_tag_other: data.mentorTag === 'Other' ? (data.mentorTagOther || null) : null,
           achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
+          goals: cleanedGoals.length > 0 ? cleanedGoals : null,
           application_status: 'pending'
         }
       ]);
@@ -762,6 +799,69 @@ export const BecomeMentor: React.FC = () => {
                               />
                               {isOverLimit && (
                                 <p className="text-[11px] text-red-500 font-medium">Please keep this achievement under 30 words (currently {words} words).</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* My Goals & Targets Section */}
+                  <div className="space-y-3 mt-6 pt-6 border-t border-outline-variant/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                          <Target size={14} className="text-primary" />
+                          My Goals & Targets (Optional, Max 3)
+                        </label>
+                        <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                          What are you currently working towards? Add up to 3 goals.
+                        </p>
+                      </div>
+                      {goals.length < 3 && (
+                        <button
+                          type="button"
+                          onClick={handleAddGoal}
+                          className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors shrink-0 w-fit"
+                        >
+                          <Plus size={14} /> Add Goal
+                        </button>
+                      )}
+                    </div>
+
+                    {goals.length > 0 && (
+                      <div className="space-y-3 mt-2">
+                        {goals.map((goal, idx) => {
+                          const words = getWordCount(goal);
+                          const isOverLimit = words > 30;
+                          return (
+                            <div key={idx} className="bg-surface-container-low/30 p-3.5 rounded-xl border border-outline-variant/20 space-y-2 animate-fade-in">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-semibold text-on-surface">Goal #{idx + 1}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className={isOverLimit ? "text-red-500 font-bold" : "text-on-surface-variant/70 font-medium"}>
+                                    {words} / 30 words
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveGoal(idx)}
+                                    className="text-on-surface-variant/50 hover:text-red-400 p-1 rounded transition-colors"
+                                    title="Remove goal"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <input
+                                type="text"
+                                value={goal}
+                                onChange={(e) => handleGoalChange(idx, e.target.value)}
+                                className={`w-full bg-surface-container-low/60 border ${isOverLimit ? 'border-red-500' : 'border-outline-variant/30'} px-3.5 py-2.5 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`}
+                                placeholder="e.g. Preparing for CAT 2024 / Building an AI SaaS / Cracking Google SWE"
+                              />
+                              {isOverLimit && (
+                                <p className="text-[11px] text-red-500 font-medium">Please keep this goal under 30 words (currently {words} words).</p>
                               )}
                             </div>
                           );
@@ -1407,11 +1507,20 @@ export const BecomeMentor: React.FC = () => {
                         </label>
                       ))}
                     </div>
+                    {watchAreasOfExpertise.includes("Other") && (
+                      <div className="mt-2 animate-fade-in">
+                        <input
+                          {...register("expertiseOther")}
+                          className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-2.5 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none"
+                          placeholder="Enter your custom expertise (e.g. Public Speaking, Vedic Maths)"
+                        />
+                      </div>
+                    )}
                     {errors.areasOfExpertise && <p className="text-xs text-red-500">{errors.areasOfExpertise.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Languages Known</label>
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Languages I Can Mentor In</label>
                     <div className="flex flex-wrap gap-2">
                       {LANGUAGES.map(lang => (
                         <label key={lang} className="flex items-center cursor-pointer">

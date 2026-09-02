@@ -9,7 +9,8 @@ import {
   GraduationCap,
   X,
   Loader2,
-  Trophy
+  Trophy,
+  Target
 } from "lucide-react";
 
 interface Mentor {
@@ -38,8 +39,10 @@ interface Mentor {
   last_online_at?: string | null;
   availability_time?: string | null;
   achievements?: string[] | null;
+  goals?: string[] | null;
   mentor_tag?: string | null;
   mentor_tag_other?: string | null;
+  expertise_other?: string | null;
 }
 
 interface MentorProfileProps {
@@ -418,13 +421,38 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
                   </div>
                 </div>
               )}
+
+              {/* Goals & Targets (rendered only if present and non-empty) */}
+              {mentor.goals && mentor.goals.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                    <Target className="text-primary" size={20} />
+                    Currently Working Towards
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {mentor.goals.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3 bg-surface-container-low/50 p-4 rounded-xl border border-white/5 hover:border-primary/20 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+                          {idx + 1}
+                        </div>
+                        <p className="text-sm text-on-surface-variant leading-relaxed font-medium">
+                          {item}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sidebar Details */}
             <div className="space-y-8">
               {mentor.areas_of_expertise && mentor.areas_of_expertise.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Expertise</h4>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Areas of Expertise</h4>
                   <div className="flex flex-wrap gap-2">
                     {mentor.areas_of_expertise.map((exp, idx) => (
                       <span key={idx} className="bg-primary/10 border border-primary/20 text-primary px-3 py-1.5 rounded-lg text-sm font-medium">
@@ -437,7 +465,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
 
               {mentor.languages_known && mentor.languages_known.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Languages</h4>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Languages I Can Mentor In</h4>
                   <div className="flex flex-wrap gap-2">
                     {mentor.languages_known.map((lang, idx) => (
                       <span key={idx} className="bg-surface-container-high border border-white/10 text-on-surface-variant px-3 py-1.5 rounded-lg text-sm">
