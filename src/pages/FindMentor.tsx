@@ -1178,11 +1178,13 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                 <div
                   key={mentor.id}
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
-                  className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group"
+                  className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group space-y-4"
                 >
+                  {/* 1. Exam Category Badge pinned to top-right corner */}
                   {renderMentorBadge(mentor)}
-                  {/* Header */}
-                  <div className="flex gap-4">
+
+                  {/* 1. Top row: photo (left), online status + name + verified shield */}
+                  <div className="flex items-start gap-4 pr-16">
                     <img
                       src={
                         mentor.profile_photo_url ||
@@ -1197,10 +1199,25 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                           "https://ui-avatars.com/api/?size=128&background=cccccc&color=ffffff&name=" +
                           encodeURIComponent(mentor.full_name || "M");
                       }}
-                      className="h-14 w-14 rounded-full border-2 border-primary object-cover"
+                      className="h-14 w-14 rounded-full border-2 border-primary object-cover flex-shrink-0"
                     />
                     <div className="flex flex-col justify-center min-w-0">
-                      <div className="flex items-center gap-2">
+                      {/* Online indicator dot + "Online"/"Last seen" text */}
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {mentor.is_online ? (
+                          <span className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            Online
+                          </span>
+                        ) : mentor.last_online_at ? (
+                          <span className="text-[10px] text-on-surface-variant/60">
+                            Last seen {formatLastSeen(mentor.last_online_at)}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Name + verified shield icon */}
+                      <div className="flex items-center gap-1.5">
                         <h4 className="text-base font-bold text-on-surface truncate">
                           {mentor.full_name}
                         </h4>
@@ -1210,18 +1227,16 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                             className="text-primary fill-primary/10 flex-shrink-0"
                           />
                         )}
-                        {mentor.is_online && (
-                          <span className="flex-shrink-0 flex items-center gap-1 bg-green-500/15 text-green-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                            Online
-                          </span>
-                        )}
                       </div>
-                      <p className="text-xs text-on-surface-variant truncate">
+
+                      {/* 2. Subtitle line: {college} • {branch} on one line, Grad {year} (if exists) */}
+                      <p className="text-xs text-on-surface-variant mt-0.5 truncate">
                         {mentor.current_organization ? (
-                          `${mentor.current_organization}${mentor.years_of_experience ? ` • ${mentor.years_of_experience} exp` : ''}`
+                          mentor.current_organization
                         ) : (
-                          `${mentor.college_name || ''}${mentor.college_name && (mentor.branch || mentor.ca_stage || mentor.upsc_stage || mentor.target_exam || mentor.target_college || mentor.other_exam) ? ' • ' : ''}${
+                          `${mentor.college_name || ''}${
+                            mentor.college_name && (mentor.branch || mentor.ca_stage || mentor.upsc_stage || mentor.target_exam || mentor.target_college || mentor.other_exam) ? ' • ' : ''
+                          }${
                             mentor.exam_category === 'CA' ? mentor.ca_stage :
                             mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
                             (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
@@ -1231,97 +1246,129 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                           }`
                         )}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {mentor.graduation_year ? (
-                          <p className="text-xs text-primary">
-                            Grad {mentor.graduation_year}
-                          </p>
-                        ) : mentor.years_of_experience ? (
-                          <p className="text-xs text-primary">
-                            Exp {mentor.years_of_experience}
-                          </p>
-                        ) : null}
-                        {mentor.rating !== null && (
-                          <StarRating rating={mentor.rating} />
-                        )}
-                        {!mentor.is_online && mentor.last_online_at && (
-                          <span className="text-[10px] text-on-surface-variant/60">Last seen {formatLastSeen(mentor.last_online_at)}</span>
-                        )}
-                      </div>
+                      {mentor.graduation_year ? (
+                        <p className="text-xs text-primary font-medium mt-0.5">
+                          Grad {mentor.graduation_year}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
-                  {/* Tags */}
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                      {mentor.current_organization ? (mentor.years_of_experience ? `${mentor.years_of_experience} exp` : mentor.exam_category) :
-                 mentor.exam_category === 'CA' ? mentor.ca_stage :
-                 mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
-                 (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
-                 mentor.exam_category === 'CUET' ? mentor.target_college :
-                 mentor.exam_category === 'Other' ? mentor.other_exam :
-                 mentor.branch || mentor.exam_category}
+                  {/* 3. Rating line */}
+                  <div className="flex items-center gap-2">
+                    {mentor.rating !== null ? (
+                      <StarRating rating={mentor.rating} />
+                    ) : (
+                      <span className="text-xs text-on-surface-variant/70 italic">New Mentor</span>
+                    )}
+                  </div>
+
+                  {/* 4. Tag row */}
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      {mentor.current_organization ? (mentor.exam_category || 'Mentor') :
+                       mentor.exam_category === 'CA' ? (mentor.ca_stage || 'CA') :
+                       mentor.exam_category === 'UPSC' ? (mentor.upsc_stage || 'UPSC') :
+                       (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? (mentor.target_exam || mentor.exam_category) :
+                       mentor.exam_category === 'CUET' ? (mentor.target_college || 'CUET') :
+                       mentor.exam_category === 'Other' ? (mentor.other_exam || 'Other') :
+                       mentor.branch || mentor.exam_category || 'Mentor'}
                     </span>
                     {mentor.verified && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
                         Verified
                       </span>
                     )}
                     {mentor.free_intro_session && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
                         Free Intro
                       </span>
                     )}
-                    {mentor.areas_of_expertise &&
-                      mentor.areas_of_expertise.slice(0, 2).map((exp) => (
-                        <span
-                          key={exp}
-                          className="text-xs font-medium px-2 py-0.5 rounded-full bg-secondary-container/20 text-secondary"
-                        >
-                          {exp}
-                        </span>
-                      ))}
-                    {mentor.areas_of_expertise &&
-                      mentor.areas_of_expertise.length > 2 && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">
-                          +{mentor.areas_of_expertise.length - 2}
-                        </span>
-                      )}
                   </div>
 
-                  {/* Languages */}
+                  {/* 5. Languages row */}
                   {mentor.languages_known && mentor.languages_known.length > 0 && (
-                    <div className="mt-2 flex items-center gap-1.5">
-                      <Globe size={11} className="text-on-surface-variant/50" />
-                      <span className="text-[11px] text-on-surface-variant/70">
+                    <div className="flex items-center gap-1.5">
+                      <Globe size={13} className="text-on-surface-variant/60 flex-shrink-0" />
+                      <span className="text-xs text-on-surface-variant/80">
                         {mentor.languages_known.join(", ")}
                       </span>
                     </div>
                   )}
 
-                  {/* Footer */}
-                  <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-on-surface-variant">Starting at</p>
-                      <p className="text-base font-extrabold text-on-surface">
-                        {getMinPrice(mentor.pricing) !== null
-                          ? `₹${getMinPrice(mentor.pricing)}`
-                          : "—"}
-                      </p>
+                  {/* 6. Experience line (stat block) */}
+                  {(mentor.experience || mentor.years_of_experience) && (
+                    <div className="bg-surface-container-high/30 rounded-lg p-2 flex flex-col w-fit min-w-[100px] border border-white/5">
+                      <span className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">
+                        Experience
+                      </span>
+                      <span className="text-xs font-bold text-on-surface mt-0.5">
+                        {mentor.experience || mentor.years_of_experience}
+                      </span>
                     </div>
-                    <div className="flex gap-2">
-                      {mentor.linkedin_url && (
-                        <a
-                          href={mentor.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full hover:bg-blue-700 transition"
-                        >
-                          LinkedIn
-                        </a>
+                  )}
+
+                  {/* 7. "I can help you with" section */}
+                  {((Array.isArray(mentor.areas_of_expertise) && mentor.areas_of_expertise.length > 0) ||
+                    typeof mentor.areas_of_expertise === 'string' || mentor.expertise_other) && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-bold text-on-surface-variant/90 tracking-wide uppercase">
+                        I can help you with
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Array.isArray(mentor.areas_of_expertise) ? (
+                          <>
+                            {mentor.areas_of_expertise.slice(0, 5).map((exp) => (
+                              <span
+                                key={exp}
+                                className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5"
+                              >
+                                {exp}
+                              </span>
+                            ))}
+                            {mentor.areas_of_expertise.length > 5 && (
+                              <span className="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-high/40 text-on-surface-variant/80 border border-white/5">
+                                +{mentor.areas_of_expertise.length - 5} more
+                              </span>
+                            )}
+                          </>
+                        ) : typeof mentor.areas_of_expertise === 'string' ? (
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5">
+                            {mentor.areas_of_expertise}
+                          </span>
+                        ) : mentor.expertise_other ? (
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5">
+                            {mentor.expertise_other}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 8. Bottom row */}
+                  <div className="pt-3 border-t border-outline-variant/10 flex items-end justify-between gap-2 mt-auto">
+                    <div className="space-y-1.5">
+                      <div>
+                        <p className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">Starting at</p>
+                        <p className="text-lg font-extrabold text-on-surface">
+                          {getMinPrice(mentor.pricing) !== null
+                            ? `₹${getMinPrice(mentor.pricing)}`
+                            : "—"}
+                        </p>
+                      </div>
+
+                      {/* Green Free 15-min Intro badge with gift-box icon if free_intro_session is true */}
+                      {mentor.free_intro_session && (
+                        <div className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-green-500/25 w-fit">
+                          <Gift size={12} className="flex-shrink-0" />
+                          <span>Free 15-min Intro</span>
+                        </div>
                       )}
                     </div>
+
+                    <button className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md group-hover:scale-105">
+                      View Profile
+                    </button>
                   </div>
                 </div>
               ))}
