@@ -20,6 +20,8 @@ interface Mentor {
   college_name: string;
   branch: string;
   exam_category?: string;
+  current_organization?: string;
+  years_of_experience?: string;
   ca_stage?: string;
   upsc_stage?: string;
   target_exam?: string;
@@ -330,18 +332,42 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
               </div>
               <p className="text-on-surface-variant text-base sm:text-lg flex flex-wrap items-center justify-center gap-2">
                 <GraduationCap size={18} className="text-primary/70" />
-                <span>{mentor.college_name}</span>
-                <span className="opacity-30">•</span>
-                <span>
-                {mentor.exam_category === 'CA' ? mentor.ca_stage :
-                 mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
-                 (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
-                 mentor.exam_category === 'CUET' ? mentor.target_college :
-                 mentor.exam_category === 'Other' ? mentor.other_exam :
-                 mentor.branch}
-                </span>
-                <span className="opacity-30">•</span>
-                <span>Class of {mentor.graduation_year}</span>
+                {mentor.current_organization ? (
+                  <>
+                    <span>{mentor.current_organization}</span>
+                    {mentor.years_of_experience && (
+                      <>
+                        <span className="opacity-30">•</span>
+                        <span>{mentor.years_of_experience} Experience</span>
+                      </>
+                    )}
+                    {mentor.exam_category && (
+                      <>
+                        <span className="opacity-30">•</span>
+                        <span>{mentor.exam_category}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {mentor.college_name && <span>{mentor.college_name}</span>}
+                    {(mentor.college_name && (mentor.branch || mentor.ca_stage || mentor.upsc_stage || mentor.target_exam || mentor.target_college || mentor.other_exam)) && <span className="opacity-30">•</span>}
+                    <span>
+                    {mentor.exam_category === 'CA' ? mentor.ca_stage :
+                     mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
+                     (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
+                     mentor.exam_category === 'CUET' ? mentor.target_college :
+                     mentor.exam_category === 'Other' ? mentor.other_exam :
+                     mentor.branch}
+                    </span>
+                    {mentor.graduation_year ? (
+                      <>
+                        <span className="opacity-30">•</span>
+                        <span>Class of {mentor.graduation_year}</span>
+                      </>
+                    ) : null}
+                  </>
+                )}
               </p>
             </div>
 

@@ -34,6 +34,8 @@ interface Mentor {
   college_name: string;
   branch: string;
   exam_category?: string;
+  current_organization?: string;
+  years_of_experience?: string;
   exam_branch?: string;
   ca_stage?: string;
   upsc_stage?: string;
@@ -767,7 +769,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                 className="w-full bg-surface-container-high/50 border border-outline-variant/30 px-4 py-2.5 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface"
               >
                 <option value="All">All Exams</option>
-                {["JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET", "Other"].map(cat => (
+                {["JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET", "Freelancing", "Web Development", "Digital Marketing", "DSA (Data Structures & Algorithms)", "Content Creation", "Entrepreneurship", "Startup Building", "Software Development", "Career Development", "Career Switching", "Job Search", "Other"].map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -797,7 +799,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
               </>
             )}
 
-            {(selectedExamCategory !== "All" && selectedExamCategory !== "JEE") && (
+            {(selectedExamCategory !== "All" && selectedExamCategory !== "JEE" && !["Freelancing", "Web Development", "Digital Marketing", "DSA (Data Structures & Algorithms)", "Content Creation", "Entrepreneurship", "Startup Building", "Software Development", "Career Development", "Career Switching", "Job Search"].includes(selectedExamCategory)) && (
               <>
                 <SearchableMultiSelect
                   label="College / Institution"
@@ -1216,17 +1218,29 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                         )}
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">
-                        {mentor.college_name} • {mentor.exam_category === 'CA' ? mentor.ca_stage :
-                 mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
-                 (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
-                 mentor.exam_category === 'CUET' ? mentor.target_college :
-                 mentor.exam_category === 'Other' ? mentor.other_exam :
-                 mentor.branch}
+                        {mentor.current_organization ? (
+                          `${mentor.current_organization}${mentor.years_of_experience ? ` • ${mentor.years_of_experience} exp` : ''}`
+                        ) : (
+                          `${mentor.college_name || ''}${mentor.college_name && (mentor.branch || mentor.ca_stage || mentor.upsc_stage || mentor.target_exam || mentor.target_college || mentor.other_exam) ? ' • ' : ''}${
+                            mentor.exam_category === 'CA' ? mentor.ca_stage :
+                            mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
+                            (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
+                            mentor.exam_category === 'CUET' ? mentor.target_college :
+                            mentor.exam_category === 'Other' ? mentor.other_exam :
+                            mentor.branch || ''
+                          }`
+                        )}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs text-primary">
-                          Grad {mentor.graduation_year}
-                        </p>
+                        {mentor.graduation_year ? (
+                          <p className="text-xs text-primary">
+                            Grad {mentor.graduation_year}
+                          </p>
+                        ) : mentor.years_of_experience ? (
+                          <p className="text-xs text-primary">
+                            Exp {mentor.years_of_experience}
+                          </p>
+                        ) : null}
                         {mentor.rating !== null && (
                           <StarRating rating={mentor.rating} />
                         )}
@@ -1240,12 +1254,13 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   {/* Tags */}
                   <div className="mt-4 flex flex-wrap gap-1.5">
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                      {mentor.exam_category === 'CA' ? mentor.ca_stage :
+                      {mentor.current_organization ? (mentor.years_of_experience ? `${mentor.years_of_experience} exp` : mentor.exam_category) :
+                 mentor.exam_category === 'CA' ? mentor.ca_stage :
                  mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
                  (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
                  mentor.exam_category === 'CUET' ? mentor.target_college :
                  mentor.exam_category === 'Other' ? mentor.other_exam :
-                 mentor.branch}
+                 mentor.branch || mentor.exam_category}
                     </span>
                     {mentor.verified && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">

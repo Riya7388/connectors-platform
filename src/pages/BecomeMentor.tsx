@@ -54,6 +54,8 @@ const mentorSchema = z.object({
   whatsapp: z.string().optional(),
   
   examCategory: z.string().min(1, "Exam category is required"),
+  currentOrganization: z.string().optional(),
+  yearsOfExperience: z.string().optional(),
   college: z.string().optional(),
   branch: z.string().optional(),
   degreeType: z.string().optional(),
@@ -98,7 +100,10 @@ const mentorSchema = z.object({
   bio: z.string().min(50, "Bio must be at least 50 characters").max(1000, "Bio must be under 1000 characters")
 }).superRefine((data, ctx) => {
   // Exam Category Conditional Validation
-  if (data.examCategory === "JEE") {
+  if (PROFESSIONAL_CATEGORIES.includes(data.examCategory)) {
+    if (!data.currentOrganization) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["currentOrganization"] });
+    if (!data.yearsOfExperience) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["yearsOfExperience"] });
+  } else if (data.examCategory === "JEE") {
     if (!data.college) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["college"] });
     if (!data.branch) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["branch"] });
     if (!data.degreeType) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["degreeType"] });
@@ -155,7 +160,32 @@ type MentorFormValues = z.infer<typeof mentorSchema>;
 
 const DURATIONS = ["15 min", "30 min", "60 min"];
 const DEGREE_TYPES = ["B.Tech", "M.Tech", "BSc", "BCA", "MCA", "Other"];
-const EXAM_CATEGORIES = ["JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET", "Other"];
+const PROFESSIONAL_CATEGORIES = [
+  "Freelancing",
+  "Web Development",
+  "Digital Marketing",
+  "DSA (Data Structures & Algorithms)",
+  "Content Creation",
+  "Entrepreneurship",
+  "Startup Building",
+  "Software Development",
+  "Career Development",
+  "Career Switching",
+  "Job Search"
+];
+const EXPERIENCE_OPTIONS = [
+  "0-1 years",
+  "1-3 years",
+  "3-5 years",
+  "5-10 years",
+  "10+ years"
+];
+const EXAM_CATEGORIES = [
+  "JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET",
+  "Freelancing", "Web Development", "Digital Marketing", "DSA (Data Structures & Algorithms)",
+  "Content Creation", "Entrepreneurship", "Startup Building", "Software Development",
+  "Career Development", "Career Switching", "Job Search", "Other"
+];
 const CA_STAGES = ["Foundation", "Intermediate", "Articleship", "CA Finalist", "CA Qualified"];
 const UPSC_STAGES = ["Prelims", "Mains", "Interview", "Qualified"];
 const NEET_COURSES = ["MBBS", "BDS", "BAMS", "BHMS", "Other"];
@@ -434,6 +464,8 @@ export const BecomeMentor: React.FC = () => {
           city: data.city,
           whatsapp_number: data.whatsapp,
           exam_category: data.examCategory,
+          current_organization: data.currentOrganization || null,
+          years_of_experience: data.yearsOfExperience || null,
           ca_stage: data.caStage,
           upsc_stage: data.upscStage,
           upsc_optional_subject: data.upscOptionalSubject,
@@ -871,21 +903,50 @@ export const BecomeMentor: React.FC = () => {
                   </div>
                 </div>
 
-                {/* --- B. Academic Details --- */}
+                {/* --- B. Current Role / Profession --- */}
                 <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">B. Academic Details</h3>
+                  <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">B. Current Role / Profession</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* 1. EXAM CATEGORY */}
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Exam Category</label>
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">In which field will you mentor</label>
                       <select {...register("examCategory")} className={`w-full bg-surface-container-low/50 border ${errors.examCategory ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Exam Category</option>
+                        <option value="">Select Category</option>
                         {EXAM_CATEGORIES.map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
                       {errors.examCategory && <p className="text-xs text-red-500">{errors.examCategory.message}</p>}
                     </div>
 
                     {/* 2. CONDITIONAL FIELDS BASED ON EXAM CATEGORY */}
+
+                    {/* === Professional Categories === */}
+                    {PROFESSIONAL_CATEGORIES.includes(watchExamCategory) && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Currently Working In</label>
+                          <input
+                            type="text"
+                            {...register("currentOrganization")}
+                            className={`w-full bg-surface-container-low/50 border ${errors.currentOrganization ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}
+                            placeholder="e.g. Freelance, Google, My Own Startup"
+                          />
+                          {errors.currentOrganization && <p className="text-xs text-red-500">{errors.currentOrganization.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Experience</label>
+                          <select
+                            {...register("yearsOfExperience")}
+                            className={`w-full bg-surface-container-low/50 border ${errors.yearsOfExperience ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}
+                          >
+                            <option value="">Select Experience</option>
+                            {EXPERIENCE_OPTIONS.map(exp => (
+                              <option key={exp} value={exp}>{exp}</option>
+                            ))}
+                          </select>
+                          {errors.yearsOfExperience && <p className="text-xs text-red-500">{errors.yearsOfExperience.message}</p>}
+                        </div>
+                      </>
+                    )}
                     
                     {/* === JEE === */}
                     {watchExamCategory === "JEE" && (
@@ -1338,8 +1399,8 @@ export const BecomeMentor: React.FC = () => {
                     )}
 
                     
-                    {/* Universal Field for Branch/Specialization (Except JEE/Other) */}
-                    {watchExamCategory && watchExamCategory !== "JEE" && watchExamCategory !== "Other" && (
+                    {/* Universal Field for Branch/Specialization (Except JEE/Other/Professional Categories) */}
+                    {watchExamCategory && !PROFESSIONAL_CATEGORIES.includes(watchExamCategory) && watchExamCategory !== "JEE" && watchExamCategory !== "Other" && (
                       <div className="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-outline-variant/20">
                         <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Branch / Specialization</label>
                         <div className="relative">
