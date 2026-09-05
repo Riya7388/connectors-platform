@@ -80,15 +80,18 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
       setRequest(reqData);
 
-      // Set the default confirmDuration to the mentor's first configured duration
-      // (parsed from e.g. "30 min" → "30"). Fallback handled below in the dropdown.
-      const rawDurations: string[] = mentorData?.session_durations ?? [];
-      if (rawDurations.length > 0) {
-        const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
-        setConfirmDuration(parseInt(sorted[0]).toString());
+      // Lock duration to student's originally requested duration (or fallback if older booking)
+      const studentRequestedMins = reqData.requested_duration_minutes || reqData.confirmed_duration_minutes;
+      if (studentRequestedMins) {
+        setConfirmDuration(String(studentRequestedMins));
       } else {
-        // Edge-case fallback: no durations configured — default to 30
-        setConfirmDuration("30");
+        const rawDurations: string[] = mentorData?.session_durations ?? [];
+        if (rawDurations.length > 0) {
+          const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
+          setConfirmDuration(parseInt(sorted[0]).toString());
+        } else {
+          setConfirmDuration("30");
+        }
       }
 
       // Check if the current user has already rated this booking
@@ -727,28 +730,22 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
                 <input type="time" required value={confirmTime} onChange={e => setConfirmTime(e.target.value)} className="w-full bg-surface-container border border-white/10 rounded-xl p-3 text-on-surface focus:border-primary/50 outline-none" />
               </div>
               <div className="w-full sm:w-auto flex-1">
-                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">Duration</label>
-                <select value={confirmDuration} onChange={e => setConfirmDuration(e.target.value)} className="w-full bg-surface-container border border-white/10 rounded-xl p-3 text-on-surface focus:border-primary/50 outline-none appearance-none">
-                  {(() => {
-                    // Build options from mentor's configured session_durations.
-                    // Format stored in DB is ["15 min", "30 min", "60 min"] etc.
-                    // Fallback to standard list if mentor has none configured (edge case).
-                    const FALLBACK_DURATIONS = ["15 min", "30 min", "60 min"];
-                    const rawDurations: string[] = request.mentors?.session_durations ?? [];
-                    const durations = rawDurations.length > 0
-                      ? [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b))
-                      : FALLBACK_DURATIONS;
-                    return durations.map((dur) => {
-                      const mins = parseInt(dur); // e.g. 60
-                      const label = mins >= 60
-                        ? `${mins / 60} Hour${mins > 60 ? 's' : ''}`
+                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  Duration (Requested by Student)
+                </label>
+                <div className="w-full bg-surface-container/70 border border-white/10 rounded-xl p-3 text-on-surface text-sm font-semibold flex items-center justify-between opacity-90 cursor-not-allowed">
+                  <span>
+                    {(() => {
+                      const mins = parseInt(confirmDuration || "30");
+                      return mins >= 60
+                        ? `${mins / 60} Hour${mins > 60 ? 's' : ''} (${mins} min)`
                         : `${mins} Minutes`;
-                      return (
-                        <option key={dur} value={String(mins)}>{label}</option>
-                      );
-                    });
-                  })()}
-                </select>
+                    })()}
+                  </span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                    Locked
+                  </span>
+                </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                 <button type="button" onClick={() => setShowConfirmForm(false)} className="px-4 py-3 bg-surface-container hover:bg-surface-container-highest text-on-surface rounded-xl font-bold flex-1 transition-colors">Cancel</button>

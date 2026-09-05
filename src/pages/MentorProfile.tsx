@@ -45,6 +45,7 @@ interface Mentor {
   mentor_tag?: string | null;
   mentor_tag_other?: string | null;
   expertise_other?: string | null;
+  session_durations?: string[] | null;
 }
 
 interface MentorProfileProps {
@@ -58,6 +59,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
   const [error, setError] = useState<string | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [initialMessage, setInitialMessage] = useState("");
+  const [selectedDuration, setSelectedDuration] = useState<string>("30");
   const [connectLoading, setConnectLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -206,6 +208,27 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     );
   };
 
+  const getAvailableDurations = (m: Mentor) => {
+    let rawDurations: string[] = m.session_durations ?? [];
+    if (rawDurations.length === 0 && m.pricing) {
+      rawDurations = Object.keys(m.pricing);
+    }
+    if (rawDurations.length === 0) {
+      rawDurations = ["15 min", "30 min"];
+    }
+
+    const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
+
+    return sorted.map((durStr) => {
+      const mins = parseInt(durStr);
+      const label = mins >= 60 ? `${mins / 60} Hour${mins > 60 ? 's' : ''}` : `${mins} min`;
+      const priceVal = m.pricing?.[durStr] || m.pricing?.[`${mins} min`];
+      const isFree = mins === 15 && m.free_intro_session;
+      const priceText = isFree ? "Free Intro" : (priceVal ? `₹${priceVal}` : "Custom");
+      return { durStr, mins: String(mins), label, priceText };
+    });
+  };
+
   const handleConnectClick = async () => {
     if (!currentUser) {
       alert("Please login to connect with mentors.");
@@ -237,6 +260,10 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       setConnectLoading(false);
     } else {
       setConnectLoading(false);
+      const durationOpts = getAvailableDurations(mentor);
+      if (durationOpts.length > 0) {
+        setSelectedDuration(durationOpts[0].mins);
+      }
       setShowConnectModal(true);
     }
   };
@@ -245,16 +272,30 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     if (!currentUser || !mentor) return;
     
     setConnectLoading(true);
-    const { error } = await supabase
+    const payload: any = {
+      student_id: currentUser.id,
+      mentor_id: mentor.id,
+      initial_message: initialMessage,
+      requested_duration_minutes: parseInt(selectedDuration) || 30,
+      status: "pending"
+    };
+
+    let { error } = await supabase
       .from("booking_requests")
-      .insert({
-        student_id: currentUser.id,
-        mentor_id: mentor.id,
-        initial_message: initialMessage,
-        status: "pending"
-      })
+      .insert(payload)
       .select()
       .single();
+
+    // Fallback if column migration hasn't been executed on Supabase yet
+    if (error && error.message?.includes("requested_duration_minutes")) {
+      delete payload.requested_duration_minutes;
+      const fallback = await supabase
+        .from("booking_requests")
+        .insert(payload)
+        .select()
+        .single();
+      error = fallback.error;
+    }
 
     setConnectLoading(false);
 
@@ -537,8 +578,25 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
             </button>
             
             <h3 className="text-2xl font-bold text-on-surface mb-2">Send a request to {mentor.full_name.split(' ')[0]}</h3>
-            <p className="text-on-surface-variant text-sm mb-6">Include a brief message about what you'd like to discuss or achieve in your mentorship session.</p>
-            
+            <p className="text-on-surface-variant text-sm mb-6">Select your session duration and include a brief message about what you'd like to discuss.</p>
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
+                Select Session Duration
+              </label>
+              <select
+                value={selectedDuration}
+                onChange={(e) => setSelectedDuration(e.target.value)}
+                className="w-full bg-surface-container-low border border-white/10 rounded-2xl p-3.5 text-on-surface font-semibold focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 cursor-pointer"
+              >
+                {getAvailableDurations(mentor).map((opt) => (
+                  <option key={opt.mins} value={opt.mins} className="bg-surface-container text-on-surface font-medium">
+                    {opt.label} — {opt.priceText}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <textarea
               value={initialMessage}
               onChange={(e) => setInitialMessage(e.target.value)}
