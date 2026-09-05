@@ -36,6 +36,46 @@ const ConfidenceIndicator: React.FC<{ confidence: College['data_confidence'] }> 
 };
 
 export const Compare: React.FC = () => {
+  const isComingSoon = import.meta.env.VITE_SHOW_AI_ENGINE_COMING_SOON === "true";
+
+  if (isComingSoon) {
+    return (
+      <div className="relative min-h-[80vh] flex items-center justify-center px-6 py-24">
+        {/* Background ambient glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-secondary-container/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-xl w-full text-center glass-card p-10 md:p-14 rounded-3xl border border-white/10 shadow-2xl space-y-6">
+          <div className="w-20 h-20 mx-auto rounded-2xl kinetic-gradient flex items-center justify-center shadow-lg shadow-primary/20 neon-glow-primary">
+            <BrainCircuit size={40} className="text-white animate-pulse" />
+          </div>
+          
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
+            <Sparkles size={14} /> Next-Gen AI Feature
+          </div>
+
+          <h1 className="text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">
+            AI Comparison Engine <br />
+            <span className="brand-gradient-text">Coming Soon</span>
+          </h1>
+
+          <p className="text-on-surface-variant text-base md:text-lg leading-relaxed max-w-md mx-auto">
+            We're building something exciting! Our AI-powered college comparison and deep data synthesis engine will be launching shortly. Check back soon!
+          </p>
+
+          <div className="pt-4 border-t border-white/5 flex justify-center">
+            <a
+              href="/"
+              className="px-6 py-3 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-sm font-semibold transition-all duration-200 border border-white/10 hover:border-white/20"
+            >
+              Return to Home
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [colleges, setColleges] = useState<College[]>([]);
   const [college1Name, setCollege1Name] = useState("");
   const [college2Name, setCollege2Name] = useState("");
