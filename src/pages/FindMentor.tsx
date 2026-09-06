@@ -1180,11 +1180,8 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
                   className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group space-y-4"
                 >
-                  {/* 1. Exam Category Badge pinned to top-right corner */}
-                  {renderMentorBadge(mentor)}
-
                   {/* 1. Top row: photo (left), online status + name + verified shield */}
-                  <div className="flex items-start gap-4 pr-16">
+                  <div className="flex items-start gap-4">
                     <img
                       src={
                         mentor.profile_photo_url ||
@@ -1312,7 +1309,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   {((Array.isArray(mentor.areas_of_expertise) && mentor.areas_of_expertise.length > 0) ||
                     typeof mentor.areas_of_expertise === 'string' || mentor.expertise_other) && (
                     <div className="space-y-1.5 pt-1">
-                      <p className="text-xs font-bold text-on-surface-variant/90 tracking-wide uppercase">
+                      <p className="text-xs font-bold text-primary/90 tracking-wide uppercase">
                         I can help you with
                       </p>
                       <div className="flex flex-wrap gap-1.5">
@@ -1321,23 +1318,23 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                             {mentor.areas_of_expertise.slice(0, 5).map((exp) => (
                               <span
                                 key={exp}
-                                className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5"
+                                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm"
                               >
                                 {exp}
                               </span>
                             ))}
                             {mentor.areas_of_expertise.length > 5 && (
-                              <span className="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-high/40 text-on-surface-variant/80 border border-white/5">
+                              <span className="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-high/60 text-on-surface-variant/80 border border-white/5">
                                 +{mentor.areas_of_expertise.length - 5} more
                               </span>
                             )}
                           </>
                         ) : typeof mentor.areas_of_expertise === 'string' ? (
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5">
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm">
                             {mentor.areas_of_expertise}
                           </span>
                         ) : mentor.expertise_other ? (
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/60 text-on-surface border border-white/5">
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm">
                             {mentor.expertise_other}
                           </span>
                         ) : null}

@@ -335,9 +335,6 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
         </button>
 
         <div className="glass-card rounded-[2rem] border border-white/10 p-8 sm:p-12 relative overflow-hidden">
-          {/* Mentor Tag / Category Badge — top-right of card */}
-          {renderMentorBadge(mentor)}
-
           {/* Header Section */}
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="relative">
@@ -429,6 +426,25 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
               )}
             </div>
 
+            {/* Prominent Areas of Expertise Chips */}
+            {mentor.areas_of_expertise && mentor.areas_of_expertise.length > 0 && (
+              <div className="pt-2 flex flex-col items-center space-y-2.5 max-w-2xl w-full">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary/90">
+                  Areas of Expertise
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {mentor.areas_of_expertise.map((exp, idx) => (
+                    <span
+                      key={idx}
+                      className="bg-primary/15 border border-primary/30 text-primary px-4 py-2 rounded-xl text-sm font-semibold shadow-sm hover:bg-primary/25 transition-all"
+                    >
+                      {exp}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="pt-4 space-y-3 w-full">
               {formatPricing(mentor.pricing)}
               {mentor.free_intro_session && (
@@ -452,8 +468,34 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
 
           {/* Details Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            {/* Bio & Achievements */}
+            {/* Main Content Column */}
             <div className="md:col-span-2 space-y-8">
+              {/* Goals & Targets (rendered only if present and non-empty) */}
+              {mentor.goals && mentor.goals.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                    <Target className="text-primary" size={20} />
+                    Currently Working Towards
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {mentor.goals.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3 bg-surface-container-low/50 p-4 rounded-xl border border-white/5 hover:border-primary/20 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+                          {idx + 1}
+                        </div>
+                        <p className="text-sm text-on-surface-variant leading-relaxed font-medium">
+                          {item}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bio */}
               <div className="space-y-4">
                 <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
                   <MessageCircle className="text-primary" size={20} />
@@ -488,48 +530,10 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
                   </div>
                 </div>
               )}
-
-              {/* Goals & Targets (rendered only if present and non-empty) */}
-              {mentor.goals && mentor.goals.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-on-surface flex items-center gap-2">
-                    <Target className="text-primary" size={20} />
-                    Currently Working Towards
-                  </h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    {mentor.goals.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start gap-3 bg-surface-container-low/50 p-4 rounded-xl border border-white/5 hover:border-primary/20 transition-colors"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
-                          {idx + 1}
-                        </div>
-                        <p className="text-sm text-on-surface-variant leading-relaxed font-medium">
-                          {item}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Sidebar Details */}
             <div className="space-y-8">
-              {mentor.areas_of_expertise && mentor.areas_of_expertise.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Areas of Expertise</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {mentor.areas_of_expertise.map((exp, idx) => (
-                      <span key={idx} className="bg-primary/10 border border-primary/20 text-primary px-3 py-1.5 rounded-lg text-sm font-medium">
-                        {exp}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {mentor.languages_known && mentor.languages_known.length > 0 && (
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">Languages I Can Mentor In</h4>
