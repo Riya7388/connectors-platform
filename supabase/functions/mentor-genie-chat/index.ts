@@ -8,6 +8,44 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// ---------------------------------------------------------------------------
+// Helper: extract the minimum price from a pricing JSONB object.
+// pricing is stored as { "30": "500", "60": "800" } (duration → price strings).
+// Returns the lowest numeric price found, or null if pricing is absent/empty.
+// ---------------------------------------------------------------------------
+function extractMinPrice(pricing: Record<string, string> | null | undefined): number | null {
+  if (!pricing || typeof pricing !== 'object') return null
+  const prices = Object.values(pricing)
+    .map((v) => Number(v))
+    .filter((n) => !isNaN(n) && n > 0)
+  if (prices.length === 0) return null
+  return Math.min(...prices)
+}
+
+// ---------------------------------------------------------------------------
+// Gemini tool declaration for search_mentors (functionDeclarations format)
+// ---------------------------------------------------------------------------
+const searchMentorsTool = {
+  functionDeclarations: [
+    {
+      name: "search_mentors",
+      description:
+        "Search the Connectors platform database for approved, verified mentors who can help with a given topic, subject, exam, or career area. Call this whenever a user describes a specific problem or goal they need help with, asks to be connected with a mentor, or asks about mentor names, pricing, or availability for any topic.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          topic: {
+            type: "STRING",
+            description:
+              "A keyword or short phrase describing the area the user needs help with, e.g. 'entrepreneurship', 'UPSC preparation', 'resume review', 'freelancing', 'JEE', 'CA articleship', 'product management'.",
+          },
+        },
+        required: ["topic"],
+      },
+    },
+  ],
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -118,7 +156,8 @@ serve(async (req) => {
       await pgClient.end()
     }
 
-    // 4. Call Gemini API securely
+    // 4. Build system prompt (original multi-exam guidance + new mentor-search
+    //    and formatting instructions appended at the end)
     const systemPrompt = `You are Mentor Genie, a friendly and knowledgeable AI assistant on Connectors — a student mentorship platform that supports aspirants across a wide range of competitive exams and career paths.
 
 ## Exam Categories You Cover
@@ -151,11 +190,32 @@ Keep your answers complete but efficient — prioritize the most useful informat
 
 If a student asks something completely unrelated to exam preparation, college admissions, career guidance, or academic/professional growth (e.g. personal life advice unrelated to academics, general trivia, or topics with no connection to a student's journey), politely redirect them back to how you can help with their exam or career journey.
 
-If a question requires personalized human mentorship (like reviewing a resume in depth, one-on-one strategy sessions, or mock interviews), suggest the student book a session with a real mentor on the Connectors platform. Do not make up specific cutoff numbers, ranks, or statistics you're not confident about — give general guidance and suggest the student verify exact figures on official sources (JoSAA portal, MCC, ICAI website, UPSC.gov.in, etc.).`
+If a question requires personalized human mentorship (like reviewing a resume in depth, one-on-one strategy sessions, or mock interviews), suggest the student book a session with a real mentor on the Connectors platform. Do not make up specific cutoff numbers, ranks, or statistics you're not confident about — give general guidance and suggest the student verify exact figures on official sources (JoSAA portal, MCC, ICAI website, UPSC.gov.in, etc.).
 
-    // Format history for Gemini API
+## Connecting Students with Real Mentors
+When a user:
+- Describes a specific problem, goal, or field they need help with (e.g. "I'm facing a problem in entrepreneurship", "I need help with UPSC prelims", "I want to switch careers to product management"), OR
+- Directly asks to be connected with a mentor, OR
+- Asks about mentor names, pricing, or availability for any topic —
+
+Call the **search_mentors** function with the most relevant topic keyword extracted from their message. Do NOT give only generic advice in these cases — search first, then personalise your response based on the real results returned.
+
+After receiving search results, present the mentors naturally and clearly. Use this format:
+
+Here are a few mentors on Connectors who can help with [topic]:
+
+1. **[Name]** — ⭐ [rating]/5 — starting at ₹[price]
+2. **[Name]** — ⭐ [rating]/5 — starting at ₹[price]
+
+You can search for them by name on the **Find a Mentor** page to view their full profiles and book a session!
+
+Keep mentor listings concise — do not pad with lengthy commentary per mentor. If no rating is available for a mentor, omit the rating rather than showing a placeholder. If no price is available, omit the price. Never invent or guess any mentor details not present in the search results.
+
+If the search returns no mentors, respond honestly: acknowledge you couldn't find a specific mentor for that area right now, and offer helpful general guidance instead. Never fabricate a mentor name or detail.`
+
+    // 5. Format conversation history for Gemini
     // Gemini expects contents as list of {role: "user" | "model", parts: [{text: string}]}
-    const contents = []
+    const contents: any[] = []
     if (history && Array.isArray(history)) {
       for (const msg of history) {
         contents.push({
@@ -169,42 +229,172 @@ If a question requires personalized human mentorship (like reviewing a resume in
       parts: [{ text: message }]
     })
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`
-    
-    const geminiResponse = await fetch(geminiUrl, {
+    const geminiModel = 'gemini-3.5-flash'
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`
+
+    // -----------------------------------------------------------------------
+    // 6. Turn 1 — Initial Gemini call with tools declared
+    // -----------------------------------------------------------------------
+    const turn1Response = await fetch(geminiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: contents,
         systemInstruction: {
           parts: [{ text: systemPrompt }]
         },
+        tools: [searchMentorsTool],
         generationConfig: {
           maxOutputTokens: 1000
         }
       })
     })
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text()
-      console.error("Gemini API Error:", errorText)
-      throw new Error(`Gemini API returned status ${geminiResponse.status}`)
+    if (!turn1Response.ok) {
+      const errorText = await turn1Response.text()
+      console.error("Gemini Turn 1 Error:", errorText)
+      throw new Error(`Gemini API returned status ${turn1Response.status}`)
     }
 
-    const geminiData = await geminiResponse.json()
-    let aiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't process your request."
-    
-    const finishReason = geminiData.candidates?.[0]?.finishReason
-    if (finishReason === 'MAX_TOKENS') {
-      aiText += "\n\n...(ask me to continue if you'd like more detail)"
-    }
+    const turn1Data = await turn1Response.json()
+    const turn1Candidate = turn1Data.candidates?.[0]
+    const turn1Parts: any[] = turn1Candidate?.content?.parts ?? []
 
-    return new Response(JSON.stringify({ text: aiText }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+    // -----------------------------------------------------------------------
+    // 7. Check if Gemini requested a function call
+    // -----------------------------------------------------------------------
+    const functionCallPart = turn1Parts.find((p: any) => p.functionCall)
+
+    if (functionCallPart) {
+      // -----------------------------------------------------------------------
+      // 7a. Execute the search_mentors DB query
+      // -----------------------------------------------------------------------
+      const fnName: string = functionCallPart.functionCall.name
+      const fnArgs: { topic?: string } = functionCallPart.functionCall.args ?? {}
+      const topic: string = (fnArgs.topic ?? "").trim()
+
+      let functionResponseContent: any
+
+      if (fnName === "search_mentors" && topic) {
+        // Clean common query noise words so 'CAT exam' -> 'CAT', 'JEE prep' -> 'JEE'
+        const cleanedTopic = topic.replace(/\b(exam|preparation|prep|guidance|mentorship|mentor|mentors|test|session)\b/gi, '').trim() || topic
+        const pattern = `%${cleanedTopic}%`
+
+        // Query approved + verified mentors matching topic against valid columns
+        const { data: mentors, error: dbError } = await supabase
+          .from('mentors')
+          .select('id, full_name, rating, pricing, exam_category, expertise_other, bio, branch, ca_stage')
+          .eq('application_status', 'approved')
+          .eq('verified', true)
+          .or(`exam_category.ilike.${pattern},expertise_other.ilike.${pattern},branch.ilike.${pattern},bio.ilike.${pattern},ca_stage.ilike.${pattern}`)
+          .order('rating', { ascending: false, nullsFirst: false })
+          .limit(4)
+
+        if (dbError) {
+          console.warn("Mentor search query failed:", dbError.message)
+          functionResponseContent = {
+            mentors: [],
+            count: 0,
+            message: `No approved mentors found for topic "${topic}" on Connectors right now. Provide helpful general advice and suggest the user browse the Find a Mentor page.`
+          }
+        } else {
+          const results = (mentors ?? []).map((m: any) => ({
+            id: m.id,
+            full_name: m.full_name,
+            rating: m.rating ?? null,
+            starting_price_inr: extractMinPrice(m.pricing),
+            exam_category: m.exam_category ?? null,
+          }))
+
+          functionResponseContent = results.length > 0
+            ? { mentors: results, count: results.length }
+            : {
+                mentors: [],
+                count: 0,
+                message: `No approved mentors found specifically for "${topic}" on Connectors right now. Respond honestly, offer helpful general advice, and suggest the user check back later or browse Find a Mentor for related experts. Do not fabricate any mentor name or detail.`
+              }
+        }
+      } else {
+        functionResponseContent = { error: `Unknown function: ${fnName}` }
+      }
+
+      // -----------------------------------------------------------------------
+      // 7b. Turn 2 — Feed function result back to Gemini for final reply
+      // -----------------------------------------------------------------------
+      const fnResponseObj: any = {
+        name: fnName,
+        response: functionResponseContent
+      }
+      if (functionCallPart.functionCall.id) {
+        fnResponseObj.id = functionCallPart.functionCall.id
+      }
+
+      const contentsWithFunctionResult: any[] = [
+        ...contents,
+        // Gemini's Turn 1 assistant response (contains the functionCall part)
+        { role: 'model', parts: turn1Parts },
+        // Our function result
+        {
+          role: 'user',
+          parts: [
+            {
+              functionResponse: fnResponseObj
+            }
+          ]
+        }
+      ]
+
+      const turn2Response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: contentsWithFunctionResult,
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          tools: [searchMentorsTool],
+          generationConfig: {
+            maxOutputTokens: 1000
+          }
+        })
+      })
+
+      if (!turn2Response.ok) {
+        const errorText = await turn2Response.text()
+        console.error("Gemini Turn 2 Error:", errorText)
+        throw new Error(`Gemini API (Turn 2) returned status ${turn2Response.status}`)
+      }
+
+      const turn2Data = await turn2Response.json()
+      const turn2Parts = turn2Data.candidates?.[0]?.content?.parts || []
+      let aiText = turn2Parts.map((p: any) => p.text || '').join('').trim() || "I'm sorry, I couldn't process your request."
+
+      const finishReason2 = turn2Data.candidates?.[0]?.finishReason
+      if (finishReason2 === 'MAX_TOKENS') {
+        aiText += "\n\n...(ask me to continue if you'd like more detail)"
+      }
+
+      return new Response(JSON.stringify({ text: aiText }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+
+    } else {
+      // -----------------------------------------------------------------------
+      // 8. No function call — return Gemini's direct text response (Turn 1)
+      // -----------------------------------------------------------------------
+      let aiText = turn1Parts.find((p: any) => p.text)?.text || "I'm sorry, I couldn't process your request."
+
+      const finishReason1 = turn1Candidate?.finishReason
+      if (finishReason1 === 'MAX_TOKENS') {
+        aiText += "\n\n...(ask me to continue if you'd like more detail)"
+      }
+
+      return new Response(JSON.stringify({ text: aiText }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
   } catch (err: any) {
     console.error("Function Error:", err)

@@ -5,7 +5,7 @@ import * as z from "zod";
 import { 
   DollarSign, HelpingHand, User, Mail, Phone, Search,
   CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone,
-  Trophy, Plus, Trash2, Tag, Target
+  Trophy, Plus, Trash2, Target
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
@@ -21,21 +21,7 @@ declare global {
   }
 }
 
-const EXAM_TAGS = [
-  "JEE", "NEET", "CA", "CAT", "UPSC", "CLAT", "Banking", "Defense", "CUET"
-];
 
-const PROFESSIONAL_TAGS = [
-  "Industry Expert",
-  "Career Mentor",
-  "Startup Founder",
-  "Tech Lead / Engineering Manager",
-  "Product Manager",
-  "Business Consultant",
-  "HR Professional",
-  "Marketing Professional",
-  "Finance Professional"
-];
 
 // --- Schema Definition ---
 const mentorSchema = z.object({
@@ -95,8 +81,6 @@ const mentorSchema = z.object({
   upiId: z.string().optional(),
   availabilityTime: z.string().optional(),
   customAvailability: z.string().optional(),
-  mentorTag: z.string().optional(),
-  mentorTagOther: z.string().optional(),
   bio: z.string().min(50, "Bio must be at least 50 characters").max(1000, "Bio must be under 1000 characters")
 }).superRefine((data, ctx) => {
   // Exam Category Conditional Validation
@@ -273,9 +257,7 @@ export const BecomeMentor: React.FC = () => {
       prices: {},
       bio: "",
       availabilityTime: "",
-      customAvailability: "",
-      mentorTag: "",
-      mentorTagOther: ""
+      customAvailability: ""
     }
   });
 
@@ -290,7 +272,6 @@ export const BecomeMentor: React.FC = () => {
 
   const watchBio = watch("bio") || "";
   const watchAvailabilityTime = watch("availabilityTime");
-  const watchMentorTag = watch("mentorTag");
 
   // Fetch branches from DB
   useEffect(() => {
@@ -501,8 +482,6 @@ export const BecomeMentor: React.FC = () => {
           upi_id: data.upiId,
           bio: data.bio,
           availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
-          mentor_tag: data.mentorTag || null,
-          mentor_tag_other: data.mentorTag === 'Other' ? (data.mentorTagOther || null) : null,
           achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
           goals: cleanedGoals.length > 0 ? cleanedGoals : null,
           application_status: 'pending'
@@ -735,46 +714,7 @@ export const BecomeMentor: React.FC = () => {
                     {errors.bio && <p className="text-xs text-red-500">{errors.bio.message}</p>}
                   </div>
 
-                  {/* Tag Yourself (Independent Field) */}
-                  <div className="space-y-2 mt-6">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                      <Tag size={14} className="text-primary" />
-                      Tag Yourself (Optional)
-                    </label>
-                    <p className="text-xs text-on-surface-variant/70 -mt-1">
-                      Choose a primary badge that represents your background on your profile and search cards.
-                    </p>
-                    <select
-                      {...register("mentorTag")}
-                      className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface"
-                    >
-                      <option value="">Select Tag (Optional)</option>
-                      <optgroup label="Exam Categories">
-                        {EXAM_TAGS.map((tag) => (
-                          <option key={tag} value={tag}>
-                            {tag}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Professional / Career">
-                        {PROFESSIONAL_TAGS.map((tag) => (
-                          <option key={tag} value={tag}>
-                            {tag}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <option value="Other">Other</option>
-                    </select>
-                    {watchMentorTag === "Other" && (
-                      <div className="mt-2 animate-fade-in">
-                        <input
-                          {...register("mentorTagOther")}
-                          className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-2.5 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none"
-                          placeholder="Enter your custom tag (e.g. AI Researcher, Startup Consultant)"
-                        />
-                      </div>
-                    )}
-                  </div>
+
 
                   {/* Achievements Section */}
                   <div className="space-y-3 mt-6 pt-6 border-t border-outline-variant/10">
