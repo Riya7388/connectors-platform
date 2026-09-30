@@ -16,10 +16,36 @@ import "./App.css";
 type Session = Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"];
 
 function App() {
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace(/^#\/?/, "");
+    if (hash) return hash;
+    return localStorage.getItem("active_tab") || "home";
+  });
   const [darkMode, setDarkMode] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Sync activeTab changes to localStorage and hash
+  const handleSetActiveTab = (tab: string) => {
+    setActiveTab(tab);
+    localStorage.setItem("active_tab", tab);
+    if (window.location.hash !== `#${tab}`) {
+      window.location.hash = tab;
+    }
+  };
+
+  // Synchronize hash changes with activeTab state
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, "");
+      if (hash && hash !== activeTab) {
+        setActiveTab(hash);
+        localStorage.setItem("active_tab", hash);
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [activeTab]);
 
   // Synchronize dark mode class with HTML tag
   useEffect(() => {
@@ -40,12 +66,12 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setSessionLoading(false);
 
-      // Post-login redirect: check mentor table (robust against multiple mentor profiles)
-      if (session?.user) {
+      // Post-login redirect on explicit sign-in event only (do not disrupt reloaded/resumed tabs on INITIAL_SESSION)
+      if (event === "SIGNED_IN" && session?.user) {
         const { data: mentors } = await supabase
           .from("mentors")
           .select("application_status")
@@ -55,10 +81,7 @@ function App() {
 
         if (mentor && mentor.application_status !== "approved") {
           // In-progress mentor application → resume
-          setActiveTab("become-mentor");
-        } else {
-          // Student, approved mentor, or no row → home
-          setActiveTab("home");
+          handleSetActiveTab("become-mentor");
         }
       }
     });
@@ -69,25 +92,25 @@ function App() {
   const renderActivePage = () => {
     switch (activeTab) {
       case "home":
-        return <Home setActiveTab={setActiveTab} />;
+        return <Home setActiveTab={handleSetActiveTab} />;
       case "compare":
         return <Compare />;
       case "find-mentor":
-        return <FindMentor setActiveTab={setActiveTab} />;
+        return <FindMentor setActiveTab={handleSetActiveTab} />;
       case "become-mentor":
         return <BecomeMentor />;
       case "dashboard":
-        return <Dashboard setActiveTab={setActiveTab} />;
+        return <Dashboard setActiveTab={handleSetActiveTab} />;
       default:
         if (activeTab.startsWith("mentor-profile/")) {
           const id = activeTab.split("mentor-profile/")[1];
-          return <MentorProfile id={id} setActiveTab={setActiveTab} />;
+          return <MentorProfile id={id} setActiveTab={handleSetActiveTab} />;
         }
         if (activeTab.startsWith("chat/")) {
           const id = activeTab.split("chat/")[1];
-          return <Chat id={id} setActiveTab={setActiveTab} />;
+          return <Chat id={id} setActiveTab={handleSetActiveTab} />;
         }
-        return <Home setActiveTab={setActiveTab} />;
+        return <Home setActiveTab={handleSetActiveTab} />;
     }
   };
 
@@ -104,7 +127,7 @@ function App() {
   if (!session) {
     return (
       <div className="min-h-screen bg-background text-on-surface font-sans transition-colors duration-300">
-        <Auth setActiveTab={setActiveTab} />
+        <Auth setActiveTab={handleSetActiveTab} />
       </div>
     );
   }
@@ -115,7 +138,7 @@ function App() {
       {/* Navigation Header */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSetActiveTab}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
       />
@@ -126,7 +149,7 @@ function App() {
       </div>
 
       {/* Footer layout */}
-      <Footer setActiveTab={setActiveTab} />
+      <Footer setActiveTab={handleSetActiveTab} />
 
       {/* AI Assistant Chatbot */}
       <MentorGenieChat />

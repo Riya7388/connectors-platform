@@ -11,6 +11,8 @@ interface FileUploadProps {
   bucket: string;
   onUploadSuccess: (url: string) => void;
   error?: string;
+  initialUrl?: string;
+  value?: string;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
@@ -21,13 +23,34 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   capture,
   bucket,
   onUploadSuccess,
-  error
+  error,
+  initialUrl,
+  value
 }) => {
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const currentInitial = value || initialUrl || null;
+  const [fileUrl, setFileUrl] = useState<string | null>(currentInitial);
+  const [fileName, setFileName] = useState<string | null>(() => {
+    if (currentInitial) {
+      const parts = currentInitial.split('/');
+      return decodeURIComponent(parts[parts.length - 1]);
+    }
+    return null;
+  });
   const [isUploading, setIsUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    const val = value !== undefined ? value : initialUrl;
+    if (val) {
+      setFileUrl(val);
+      const parts = val.split('/');
+      setFileName(decodeURIComponent(parts[parts.length - 1]));
+    } else if (val === '') {
+      setFileUrl(null);
+      setFileName(null);
+    }
+  }, [value, initialUrl]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

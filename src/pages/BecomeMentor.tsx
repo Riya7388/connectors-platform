@@ -5,11 +5,13 @@ import * as z from "zod";
 import { 
   DollarSign, HelpingHand, User, Mail, Phone, Search,
   CheckCircle, MapPin, Calendar, Link, ShieldCheck, IndianRupee, Smartphone,
-  Trophy, Plus, Trash2, Target
+  Trophy, Plus, Trash2, Target, RotateCcw, X, Sparkles, Check, ChevronDown
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
 import { AREAS_OF_EXPERTISE, LANGUAGES } from "../constants/mentorConstants";
+
+const DRAFT_STORAGE_KEY = "becomeMentor_draft";
 
 // For Firebase OTP
 import { auth } from "../lib/firebase";
@@ -194,6 +196,14 @@ export const BecomeMentor: React.FC = () => {
   const [examBranchSearch, setExamBranchSearch] = useState("");
   const [examBranchDropdownOpen, setExamBranchDropdownOpen] = useState(false);
   
+  // Searchable Multi-Select for Areas of Expertise
+  const [expertiseSearch, setExpertiseSearch] = useState("");
+  const [expertiseDropdownOpen, setExpertiseDropdownOpen] = useState(false);
+  const expertiseDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Achievement Proofs State (Multiple Uploads)
+  const [achievementProofs, setAchievementProofs] = useState<string[]>([""]);
+
   // OTP States
   const [otpSent, setOtpSent] = useState(false);
   const [otpInput, setOtpInput] = useState("");
@@ -244,10 +254,43 @@ export const BecomeMentor: React.FC = () => {
     setGoals(updated);
   };
 
-  const { register, handleSubmit, control, watch, setValue, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
+  const { register, handleSubmit, control, watch, setValue, reset, trigger, formState: { errors, isValid, isSubmitted } } = useForm<MentorFormValues>({
     resolver: zodResolver(mentorSchema) as any,
     mode: "all",
     defaultValues: {
+      fullName: "",
+      profilePhotoUrl: "",
+      dob: "",
+      gender: "",
+      phone: "",
+      personalEmail: "",
+      city: "",
+      whatsapp: "",
+      examCategory: "",
+      currentOrganization: "",
+      yearsOfExperience: "",
+      college: "",
+      branch: "",
+      degreeType: "",
+      admissionYear: "",
+      gradYear: "",
+      currentSemester: "",
+      caStage: "",
+      upscStage: "",
+      upscOptionalSubject: "",
+      targetAttemptYear: "",
+      institutionOther: "",
+      courseType: "",
+      targetExam: "",
+      targetCollege: "",
+      otherExam: "",
+      currentPrepStage: "",
+      examBranch: "",
+      examBranchOther: "",
+      govtIdUrl: "",
+      studentIdFrontUrl: "",
+      studentIdBackUrl: "",
+      linkedinUrl: "",
       languages: [],
       areasOfExpertise: [],
       expertiseOther: "",
@@ -255,11 +298,348 @@ export const BecomeMentor: React.FC = () => {
       payoutMethod: "upi",
       freeIntro: true,
       prices: {},
+      bankAccount: "",
+      ifscCode: "",
+      accountHolder: "",
+      upiId: "",
       bio: "",
       availabilityTime: "",
       customAvailability: ""
     }
   });
+
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Restore saved profile from database OR saved draft on mount
+  useEffect(() => {
+    const loadProfileOrDraft = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData?.session?.user;
+
+        let dbLoaded = false;
+        if (user) {
+          const { data: mentorDb, error: mentorDbError } = await supabase
+            .from('mentors')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (mentorDb && !mentorDbError) {
+            dbLoaded = true;
+
+            // Parse areas of expertise
+            let parsedExpertise: string[] = [];
+            if (Array.isArray(mentorDb.areas_of_expertise)) {
+              parsedExpertise = mentorDb.areas_of_expertise;
+            } else if (typeof mentorDb.areas_of_expertise === 'string') {
+              try {
+                parsedExpertise = JSON.parse(mentorDb.areas_of_expertise);
+              } catch {
+                parsedExpertise = [mentorDb.areas_of_expertise];
+              }
+            }
+
+            // Parse achievement proofs from govt_id_url
+            if (mentorDb.govt_id_url) {
+              const proofs = mentorDb.govt_id_url.includes(',')
+                ? mentorDb.govt_id_url.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : [mentorDb.govt_id_url];
+              setAchievementProofs(proofs.length > 0 ? proofs : [""]);
+            }
+
+            if (Array.isArray(mentorDb.achievements)) {
+              setAchievements(mentorDb.achievements);
+            }
+            if (Array.isArray(mentorDb.goals)) {
+              setGoals(mentorDb.goals);
+            }
+            if (mentorDb.phone_number) {
+              setPhoneVerified(true);
+            }
+
+            reset({
+              fullName: mentorDb.full_name || "",
+              profilePhotoUrl: mentorDb.profile_photo_url || "",
+              dob: mentorDb.date_of_birth || "",
+              gender: mentorDb.gender || "",
+              phone: mentorDb.phone_number || "",
+              personalEmail: mentorDb.personal_email || "",
+              city: mentorDb.city || "",
+              whatsapp: mentorDb.whatsapp_number || "",
+              examCategory: mentorDb.exam_category || "",
+              currentOrganization: mentorDb.current_organization || "",
+              yearsOfExperience: mentorDb.years_of_experience || "",
+              college: mentorDb.college_name || "",
+              branch: mentorDb.branch || "",
+              degreeType: mentorDb.degree_type || "",
+              admissionYear: mentorDb.year_of_admission ? String(mentorDb.year_of_admission) : "",
+              gradYear: mentorDb.graduation_year ? String(mentorDb.graduation_year) : "",
+              currentSemester: mentorDb.current_semester || "",
+              caStage: mentorDb.ca_stage || "",
+              upscStage: mentorDb.upsc_stage || "",
+              upscOptionalSubject: mentorDb.upsc_optional_subject || "",
+              targetAttemptYear: mentorDb.target_attempt_year ? String(mentorDb.target_attempt_year) : "",
+              institutionOther: mentorDb.institution_other || "",
+              courseType: mentorDb.course_type || "",
+              targetExam: mentorDb.target_exam || "",
+              targetCollege: mentorDb.target_college || "",
+              otherExam: mentorDb.other_exam || "",
+              currentPrepStage: mentorDb.current_prep_stage || "",
+              examBranch: mentorDb.exam_branch || "",
+              examBranchOther: mentorDb.exam_branch_other || "",
+              govtIdUrl: mentorDb.govt_id_url || "",
+              studentIdFrontUrl: mentorDb.student_id_front_url || "",
+              studentIdBackUrl: mentorDb.student_id_back_url || "",
+              linkedinUrl: mentorDb.linkedin_url || "",
+              languages: Array.isArray(mentorDb.languages_known) ? mentorDb.languages_known : [],
+              areasOfExpertise: parsedExpertise,
+              expertiseOther: mentorDb.expertise_other || "",
+              sessionDurations: Array.isArray(mentorDb.session_durations) ? mentorDb.session_durations : [],
+              prices: mentorDb.pricing || {},
+              freeIntro: mentorDb.free_intro_session ?? true,
+              payoutMethod: mentorDb.payout_type || "upi",
+              bankAccount: mentorDb.bank_account_number || "",
+              ifscCode: mentorDb.bank_ifsc || "",
+              accountHolder: mentorDb.bank_account_holder || "",
+              upiId: mentorDb.upi_id || "",
+              bio: mentorDb.bio || "",
+              availabilityTime: mentorDb.availability_time || "",
+              customAvailability: mentorDb.availability_time || ""
+            });
+          }
+        }
+
+        if (!dbLoaded) {
+          const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (rawDraft) {
+            const draft = JSON.parse(rawDraft);
+            if (draft && typeof draft === "object") {
+              // Explicitly omit file upload URLs from restoration
+              const {
+                profilePhotoUrl: _p,
+                govtIdUrl: _g,
+                studentIdFrontUrl: _sf,
+                studentIdBackUrl: _sb,
+                achievements: savedAchievements,
+                goals: savedGoals,
+                lastSaved: _ls,
+                ...restFields
+              } = draft;
+
+              // Check if there is actual saved content
+              const hasSavedData = Object.entries(restFields).some(([k, v]) => {
+                if (k === 'freeIntro' || k === 'payoutMethod') return false;
+                if (Array.isArray(v)) return v.length > 0;
+                if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
+                return typeof v === 'string' && v.trim().length > 0;
+              }) || (Array.isArray(savedAchievements) && savedAchievements.length > 0) || (Array.isArray(savedGoals) && savedGoals.length > 0);
+
+              if (hasSavedData) {
+                reset({
+                  ...restFields,
+                  profilePhotoUrl: "",
+                  govtIdUrl: "",
+                  studentIdFrontUrl: "",
+                  studentIdBackUrl: ""
+                });
+
+                if (Array.isArray(savedAchievements)) {
+                  setAchievements(savedAchievements);
+                }
+                if (Array.isArray(savedGoals)) {
+                  setGoals(savedGoals);
+                }
+
+                setDraftRestored(true);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading profile or restoring draft:", err);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+
+    loadProfileOrDraft();
+  }, [reset]);
+
+  // Debounced auto-save draft to localStorage (excluding file uploads)
+  const allFormValues = watch();
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const timer = setTimeout(() => {
+      const draftData = {
+        fullName: allFormValues.fullName || "",
+        dob: allFormValues.dob || "",
+        gender: allFormValues.gender || "",
+        phone: allFormValues.phone || "",
+        personalEmail: allFormValues.personalEmail || "",
+        city: allFormValues.city || "",
+        whatsapp: allFormValues.whatsapp || "",
+        examCategory: allFormValues.examCategory || "",
+        currentOrganization: allFormValues.currentOrganization || "",
+        yearsOfExperience: allFormValues.yearsOfExperience || "",
+        college: allFormValues.college || "",
+        branch: allFormValues.branch || "",
+        degreeType: allFormValues.degreeType || "",
+        admissionYear: allFormValues.admissionYear || "",
+        gradYear: allFormValues.gradYear || "",
+        currentSemester: allFormValues.currentSemester || "",
+        caStage: allFormValues.caStage || "",
+        upscStage: allFormValues.upscStage || "",
+        upscOptionalSubject: allFormValues.upscOptionalSubject || "",
+        targetAttemptYear: allFormValues.targetAttemptYear || "",
+        institutionOther: allFormValues.institutionOther || "",
+        courseType: allFormValues.courseType || "",
+        targetExam: allFormValues.targetExam || "",
+        targetCollege: allFormValues.targetCollege || "",
+        otherExam: allFormValues.otherExam || "",
+        currentPrepStage: allFormValues.currentPrepStage || "",
+        examBranch: allFormValues.examBranch || "",
+        examBranchOther: allFormValues.examBranchOther || "",
+        linkedinUrl: allFormValues.linkedinUrl || "",
+        languages: allFormValues.languages || [],
+        areasOfExpertise: allFormValues.areasOfExpertise || [],
+        expertiseOther: allFormValues.expertiseOther || "",
+        sessionDurations: allFormValues.sessionDurations || [],
+        prices: allFormValues.prices || {},
+        freeIntro: allFormValues.freeIntro ?? true,
+        payoutMethod: allFormValues.payoutMethod || "upi",
+        bankAccount: allFormValues.bankAccount || "",
+        ifscCode: allFormValues.ifscCode || "",
+        accountHolder: allFormValues.accountHolder || "",
+        upiId: allFormValues.upiId || "",
+        availabilityTime: allFormValues.availabilityTime || "",
+        customAvailability: allFormValues.customAvailability || "",
+        bio: allFormValues.bio || "",
+        achievements,
+        goals,
+        lastSaved: new Date().toISOString()
+      };
+
+      const hasContent = Object.entries(draftData).some(([k, v]) => {
+        if (k === 'freeIntro' || k === 'payoutMethod' || k === 'lastSaved') return false;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
+        return typeof v === 'string' && v.trim().length > 0;
+      });
+
+      if (hasContent) {
+        try {
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+        } catch (e) {
+          console.warn("Failed to auto-save draft to localStorage:", e);
+        }
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [allFormValues, achievements, goals, isInitialized]);
+
+  const handleClearDraft = () => {
+    if (window.confirm("Are you sure you want to clear your saved draft and start over?")) {
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch (e) {
+        console.warn("Failed to remove draft from localStorage:", e);
+      }
+
+      reset({
+        fullName: "",
+        profilePhotoUrl: "",
+        dob: "",
+        gender: "",
+        phone: "",
+        personalEmail: "",
+        city: "",
+        whatsapp: "",
+        examCategory: "",
+        currentOrganization: "",
+        yearsOfExperience: "",
+        college: "",
+        branch: "",
+        degreeType: "",
+        admissionYear: "",
+        gradYear: "",
+        currentSemester: "",
+        caStage: "",
+        upscStage: "",
+        upscOptionalSubject: "",
+        targetAttemptYear: "",
+        institutionOther: "",
+        courseType: "",
+        targetExam: "",
+        targetCollege: "",
+        otherExam: "",
+        currentPrepStage: "",
+        examBranch: "",
+        examBranchOther: "",
+        govtIdUrl: "",
+        studentIdFrontUrl: "",
+        studentIdBackUrl: "",
+        linkedinUrl: "",
+        languages: [],
+        areasOfExpertise: [],
+        expertiseOther: "",
+        sessionDurations: [],
+        prices: {},
+        freeIntro: true,
+        payoutMethod: "upi",
+        bankAccount: "",
+        ifscCode: "",
+        accountHolder: "",
+        upiId: "",
+        availabilityTime: "",
+        customAvailability: "",
+        bio: ""
+      });
+
+      setAchievements([]);
+      setGoals([]);
+      setAchievementProofs([""]);
+      setPhoneVerified(false);
+      setOtpSent(false);
+      setOtpInput("");
+      setDraftRestored(false);
+    }
+  };
+
+  const handleAddAchievementProof = () => {
+    setAchievementProofs(prev => [...prev, ""]);
+  };
+
+  const handleRemoveAchievementProof = (index: number) => {
+    setAchievementProofs(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length === 0 ? [""] : next;
+    });
+  };
+
+  const handleAchievementProofSuccess = (index: number, url: string) => {
+    setAchievementProofs(prev => {
+      const next = [...prev];
+      next[index] = url;
+      return next;
+    });
+    if (index === 0) {
+      setValue("govtIdUrl", url);
+    }
+  };
+
+  const toggleExpertise = (topic: string) => {
+    const current = watchAreasOfExpertise || [];
+    const updated = current.includes(topic)
+      ? current.filter(t => t !== topic)
+      : [...current, topic];
+    setValue("areasOfExpertise", updated, { shouldValidate: true });
+    trigger("areasOfExpertise");
+  };
 
   const watchExamCategory = watch("examCategory");
   const watchCollege = watch("college");
@@ -272,6 +652,17 @@ export const BecomeMentor: React.FC = () => {
 
   const watchBio = watch("bio") || "";
   const watchAvailabilityTime = watch("availabilityTime");
+
+  // Close expertise dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (expertiseDropdownRef.current && !expertiseDropdownRef.current.contains(event.target as Node)) {
+        setExpertiseDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Fetch branches from DB
   useEffect(() => {
@@ -386,127 +777,93 @@ export const BecomeMentor: React.FC = () => {
         return;
       }
 
-      // Check if this user has already submitted a mentor application
+      // Check if this user already has a mentor record
       const { data: existingMentor } = await supabase
         .from('mentors')
-        .select('application_status')
+        .select('id, application_status')
         .eq('user_id', user.id)
         .maybeSingle();
 
+      const mentorPayload = {
+        user_id: user.id,
+        full_name: data.fullName,
+        profile_photo_url: data.profilePhotoUrl,
+        date_of_birth: data.dob,
+        gender: data.gender,
+        phone_number: data.phone,
+        personal_email: data.personalEmail,
+        city: data.city,
+        whatsapp_number: data.whatsapp,
+        exam_category: data.examCategory,
+        current_organization: data.currentOrganization || null,
+        years_of_experience: data.yearsOfExperience || null,
+        ca_stage: data.caStage,
+        upsc_stage: data.upscStage,
+        upsc_optional_subject: data.upscOptionalSubject,
+        target_attempt_year: data.targetAttemptYear ? parseInt(data.targetAttemptYear) : null,
+        institution_other: data.institutionOther,
+        current_prep_stage: data.currentPrepStage,
+        exam_branch: data.examBranch || "",
+        exam_branch_other: data.examBranchOther || "",
+        course_type: data.courseType,
+        target_exam: data.targetExam,
+        target_college: data.targetCollege,
+        other_exam: data.otherExam,
+        college_name: data.college || "",
+        branch: data.branch || "",
+        degree_type: data.degreeType || "",
+        year_of_admission: data.admissionYear ? parseInt(data.admissionYear) : null,
+        graduation_year: data.gradYear ? parseInt(data.gradYear) : null,
+        current_semester: data.currentSemester || "",
+        govt_id_url: proofUrlString,
+        student_id_front_url: data.studentIdFrontUrl,
+        student_id_back_url: data.studentIdBackUrl,
+        linkedin_url: data.linkedinUrl,
+        areas_of_expertise: cleanedExpertise.length > 0 ? cleanedExpertise : null,
+        expertise_other: customExpertise || null,
+        languages_known: data.languages,
+        session_durations: data.sessionDurations,
+        pricing: data.prices,
+        free_intro_session: data.freeIntro,
+        payout_type: data.payoutMethod,
+        bank_account_number: data.bankAccount,
+        bank_ifsc: data.ifscCode,
+        bank_account_holder: data.accountHolder,
+        upi_id: data.upiId,
+        bio: data.bio,
+        availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
+        achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
+        goals: cleanedGoals.length > 0 ? cleanedGoals : null,
+        application_status: existingMentor?.application_status || 'pending'
+      };
+
+      let saveError;
       if (existingMentor) {
-        const currentStatus = existingMentor.application_status || 'submitted';
-        alert(`Aapne already ek mentor application submit ki hai — status: ${currentStatus}.\nAgar aap apni details update karna chahte hain, please contact support.`);
-        setIsSubmitting(false);
-        return;
+        const { error } = await supabase
+          .from('mentors')
+          .update(mentorPayload)
+          .eq('id', existingMentor.id);
+        saveError = error;
+      } else {
+        const { error } = await supabase
+          .from('mentors')
+          .insert([mentorPayload]);
+        saveError = error;
       }
 
-      // Validate achievements word count (max 30 words per item)
-      const cleanedAchievements = achievements
-        .map((a) => a.trim())
-        .filter((a) => a.length > 0);
-
-      if (cleanedAchievements.some((a) => getWordCount(a) > 30)) {
-        alert("Each achievement must be 30 words or less. Please review and try again.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Validate goals word count (max 30 words per item)
-      const cleanedGoals = goals
-        .map((g) => g.trim())
-        .filter((g) => g.length > 0);
-
-      if (cleanedGoals.some((g) => getWordCount(g) > 30)) {
-        alert("Each goal must be 30 words or less. Please review and try again.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Handle areas of expertise: replace "Other" with custom text if provided
-      const customExpertise = data.expertiseOther?.trim();
-      const cleanedExpertise = (data.areasOfExpertise || [])
-        .map((item) => {
-          if (item === "Other") {
-            return customExpertise || "";
-          }
-          return item;
-        })
-        .filter((item) => item.length > 0);
-
-      const { error } = await supabase.from('mentors').insert([
-        {
-          user_id: user.id,
-          full_name: data.fullName,
-          profile_photo_url: data.profilePhotoUrl,
-          date_of_birth: data.dob,
-          gender: data.gender,
-          phone_number: data.phone,
-          personal_email: data.personalEmail,
-          city: data.city,
-          whatsapp_number: data.whatsapp,
-          exam_category: data.examCategory,
-          current_organization: data.currentOrganization || null,
-          years_of_experience: data.yearsOfExperience || null,
-          ca_stage: data.caStage,
-          upsc_stage: data.upscStage,
-          upsc_optional_subject: data.upscOptionalSubject,
-          target_attempt_year: data.targetAttemptYear ? parseInt(data.targetAttemptYear) : null,
-          institution_other: data.institutionOther,
-          current_prep_stage: data.currentPrepStage,
-          exam_branch: data.examBranch || "",
-          exam_branch_other: data.examBranchOther || "",
-          course_type: data.courseType,
-          target_exam: data.targetExam,
-          target_college: data.targetCollege,
-          other_exam: data.otherExam,
-          college_name: data.college || "",
-          branch: data.branch || "",
-          degree_type: data.degreeType || "",
-          year_of_admission: data.admissionYear ? parseInt(data.admissionYear) : null,
-          graduation_year: data.gradYear ? parseInt(data.gradYear) : null,
-          current_semester: data.currentSemester || "",
-          govt_id_url: data.govtIdUrl,
-          student_id_front_url: data.studentIdFrontUrl,
-          student_id_back_url: data.studentIdBackUrl,
-          linkedin_url: data.linkedinUrl,
-          areas_of_expertise: cleanedExpertise.length > 0 ? cleanedExpertise : null,
-          expertise_other: customExpertise || null,
-          languages_known: data.languages,
-          session_durations: data.sessionDurations,
-          pricing: data.prices,
-          free_intro_session: data.freeIntro,
-          payout_type: data.payoutMethod,
-          bank_account_number: data.bankAccount,
-          bank_ifsc: data.ifscCode,
-          bank_account_holder: data.accountHolder,
-          upi_id: data.upiId,
-          bio: data.bio,
-          availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
-          achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
-          goals: cleanedGoals.length > 0 ? cleanedGoals : null,
-          application_status: 'pending'
-        }
-      ]);
-
-      if (error) {
-        // Handle unique constraint violation on mentors.user_id gracefully
-        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('mentors_user_id_unique')) {
-          const { data: latestMentor } = await supabase
-            .from('mentors')
-            .select('application_status')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          const currentStatus = latestMentor?.application_status || 'submitted';
-          alert(`Aapne already ek mentor application submit ki hai — status: ${currentStatus}.\nAgar aap apni details update karna chahte hain, please contact support.`);
-          return;
-        }
-
-        console.error("Failed to submit application:", error);
-        alert("Something went wrong submitting your application — please try again.");
+      if (saveError) {
+        console.error("Failed to submit/update application:", saveError);
+        alert("Something went wrong saving your application — please try again.");
         return;
       }
       
+      // Clear draft from localStorage on successful application submission
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch (err) {
+        console.warn("Failed to remove draft on submission:", err);
+      }
+
       setFormSubmitted(true);
     } catch (e) {
       console.error(e);
@@ -581,8 +938,47 @@ export const BecomeMentor: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleSubmit(onSubmit as any)} className="glass-card p-6 md:p-10 rounded-2xl shadow-2xl relative border border-white/10 space-y-10">
-                <div className="flex justify-between items-center pb-4 border-b border-outline-variant/10">
-                  <h2 className="text-2xl font-extrabold text-on-surface">Apply to Mentor</h2>
+                {/* Draft Restored Banner */}
+                {draftRestored && (
+                  <div className="bg-primary/10 border border-primary/30 p-3.5 rounded-xl flex items-center justify-between gap-3 text-sm animate-fade-in">
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles size={16} className="text-primary shrink-0" />
+                      <span className="text-on-surface font-medium text-xs sm:text-sm">
+                        We restored your previous progress from your saved draft.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleClearDraft}
+                        className="text-xs text-on-surface-variant hover:text-red-400 underline font-medium transition-colors"
+                      >
+                        Clear draft
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraftRestored(false)}
+                        className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg transition-colors"
+                        title="Dismiss notice"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant/10">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl font-extrabold text-on-surface">Apply to Mentor</h2>
+                    <button
+                      type="button"
+                      onClick={handleClearDraft}
+                      className="text-xs text-on-surface-variant hover:text-red-400 bg-surface-container-low/60 hover:bg-red-500/10 border border-outline-variant/20 px-2.5 py-1 rounded-lg transition-all font-medium flex items-center gap-1.5"
+                      title="Reset all fields and clear draft"
+                    >
+                      <RotateCcw size={12} /> Clear draft / Start over
+                    </button>
+                  </div>
                   <div className="flex gap-1.5 items-center">
                     <span className="text-xs font-bold text-primary mr-2 uppercase tracking-wider">Step 1 of 3</span>
                     <div className="w-8 h-1 bg-primary rounded-full"></div>
@@ -683,21 +1079,27 @@ export const BecomeMentor: React.FC = () => {
                     </div>
                   </div>
 
-                  <Controller
-                    control={control}
-                    name="profilePhotoUrl"
-                    render={({ field }) => (
-                      <FileUpload
-                        label="Profile Photo"
-                        accept="image/jpeg, image/png, image/webp"
-                        maxSizeMB={5}
-                        capture="user"
-                        bucket="profile-photos"
-                        error={errors.profilePhotoUrl?.message}
-                        onUploadSuccess={field.onChange}
-                      />
-                    )}
-                  />
+                  <div className="space-y-1.5">
+                    <Controller
+                      control={control}
+                      name="profilePhotoUrl"
+                      render={({ field }) => (
+                        <FileUpload
+                          label="Profile Photo"
+                          accept="image/jpeg, image/png, image/webp"
+                          maxSizeMB={5}
+                          capture="user"
+                          bucket="profile-photos"
+                          value={field.value}
+                          error={errors.profilePhotoUrl?.message}
+                          onUploadSuccess={field.onChange}
+                        />
+                      )}
+                    />
+                    <p className="text-[11px] text-on-surface-variant/70 italic">
+                      Note: Uploaded files aren't saved in drafts — please re-upload if you return to a saved draft.
+                    </p>
+                  </div>
 
                   <div className="space-y-2 mt-6">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex justify-between">
@@ -1443,71 +1845,197 @@ export const BecomeMentor: React.FC = () => {
                     {errors.linkedinUrl && <p className="text-xs text-red-500">{errors.linkedinUrl.message}</p>}
                   </div>
 
+                  {/* Achievement Proof Section */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                        Achievement Proof
+                      </label>
+                      <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                        Upload proof of your achievements, certifications, ranks, awards, etc.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {achievementProofs.map((url, index) => (
+                        <div key={index} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-on-surface-variant">
+                              {achievementProofs.length > 1 ? `Achievement Proof ${index + 1}` : 'Achievement Proof 1'}
+                            </span>
+                            {achievementProofs.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAchievementProof(index)}
+                                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                                title="Remove this achievement proof upload"
+                              >
+                                <Trash2 size={13} /> Remove
+                              </button>
+                            )}
+                          </div>
+                          <FileUpload
+                            label=""
+                            accept="application/pdf, image/jpeg, image/png, image/webp"
+                            maxSizeMB={10}
+                            bucket="government-ids"
+                            value={url}
+                            error={index === 0 ? errors.govtIdUrl?.message : undefined}
+                            onUploadSuccess={(uploadedUrl) => handleAchievementProofSuccess(index, uploadedUrl)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddAchievementProof}
+                      className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit"
+                    >
+                      <Plus size={14} /> + Add another achievement
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Controller
                       control={control}
-                      name="govtIdUrl"
+                      name="studentIdFrontUrl"
                       render={({ field }) => (
                         <FileUpload
-                          label="Government ID Upload (Aadhaar/Passport)"
+                          label="Student ID Card (Front)"
+                          helperText="Must clearly show your photo, name, and enrollment year"
                           accept="application/pdf, image/jpeg, image/png, image/webp"
                           maxSizeMB={10}
-                          bucket="government-ids"
-                          error={errors.govtIdUrl?.message}
+                          bucket="student-ids"
+                          value={field.value}
+                          error={errors.studentIdFrontUrl?.message}
                           onUploadSuccess={field.onChange}
                         />
                       )}
                     />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Controller
-                        control={control}
-                        name="studentIdFrontUrl"
-                        render={({ field }) => (
-                          <FileUpload
-                            label="Student ID Card (Front)"
-                            helperText="Must clearly show your photo, name, and enrollment year"
-                            accept="application/pdf, image/jpeg, image/png, image/webp"
-                            maxSizeMB={10}
-                            bucket="student-ids"
-                            error={errors.studentIdFrontUrl?.message}
-                            onUploadSuccess={field.onChange}
-                          />
-                        )}
-                      />
-                      <Controller
-                        control={control}
-                        name="studentIdBackUrl"
-                        render={({ field }) => (
-                          <FileUpload
-                            label="Student ID Card (Back)"
-                            accept="application/pdf, image/jpeg, image/png, image/webp"
-                            maxSizeMB={10}
-                            bucket="student-ids"
-                            error={errors.studentIdBackUrl?.message}
-                            onUploadSuccess={field.onChange}
-                          />
-                        )}
-                      />
-                    </div>
+                    <Controller
+                      control={control}
+                      name="studentIdBackUrl"
+                      render={({ field }) => (
+                        <FileUpload
+                          label="Student ID Card (Back)"
+                          accept="application/pdf, image/jpeg, image/png, image/webp"
+                          maxSizeMB={10}
+                          bucket="student-ids"
+                          value={field.value}
+                          error={errors.studentIdBackUrl?.message}
+                          onUploadSuccess={field.onChange}
+                        />
+                      )}
+                    />
+                  </div>
+                  <p className="text-[11px] text-on-surface-variant/70 italic">
+                    Note: Uploaded files aren't saved in drafts — please re-upload if you return to a saved draft.
+                  </p>
                 </div>
 
                 {/* --- D. Mentoring Preferences --- */}
                 <div className="space-y-6">
                   <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">D. Mentoring Preferences</h3>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative" ref={expertiseDropdownRef}>
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Areas of Expertise</label>
                     <p className="text-xs text-on-surface-variant/70 -mt-1">Select all topics you can help students with</p>
-                    <div className="flex flex-wrap gap-2">
-                      {AREAS_OF_EXPERTISE.map(topic => (
-                        <label key={topic} className="flex items-center cursor-pointer">
-                          <input type="checkbox" value={topic} {...register("areasOfExpertise")} className="peer hidden" />
-                          <div className="px-4 py-2 rounded-full border border-outline-variant/30 peer-checked:bg-primary/20 peer-checked:text-primary peer-checked:border-primary text-sm font-medium text-on-surface-variant transition-colors">
-                            {topic}
-                          </div>
-                        </label>
-                      ))}
+                    
+                    {/* Multi-Select Trigger Box */}
+                    <div
+                      onClick={() => setExpertiseDropdownOpen(!expertiseDropdownOpen)}
+                      className={`w-full bg-surface-container-low/50 border ${errors.areasOfExpertise ? 'border-red-500' : 'border-outline-variant/30'} p-3 rounded-xl min-h-[48px] cursor-pointer flex items-center justify-between text-on-surface focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-colors`}
+                    >
+                      <div className="flex flex-wrap gap-1.5 items-center flex-1 mr-2">
+                        {(!watchAreasOfExpertise || watchAreasOfExpertise.length === 0) ? (
+                          <span className="text-xs sm:text-sm text-on-surface-variant/50">
+                            Search and select areas of expertise...
+                          </span>
+                        ) : (
+                          watchAreasOfExpertise.map((topic) => (
+                            <span
+                              key={topic}
+                              className="inline-flex items-center gap-1 bg-primary/20 text-primary px-2.5 py-1 rounded-lg text-xs font-semibold animate-fade-in"
+                            >
+                              {topic}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpertise(topic);
+                                }}
+                                className="hover:text-red-400 p-0.5 rounded transition-colors"
+                                title={`Remove ${topic}`}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`text-on-surface-variant/60 transition-transform shrink-0 ${expertiseDropdownOpen ? 'rotate-180' : ''}`}
+                      />
                     </div>
+
+                    {/* Searchable Dropdown Menu */}
+                    {expertiseDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-72 overflow-hidden animate-fade-in">
+                        <div className="sticky top-0 bg-surface-container-low p-2.5 border-b border-outline-variant/20 z-10">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                            <input
+                              type="text"
+                              value={expertiseSearch}
+                              onChange={(e) => setExpertiseSearch(e.target.value)}
+                              placeholder="Search expertise..."
+                              className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        <div className="overflow-y-auto max-h-56 custom-scrollbar p-1.5 space-y-0.5">
+                          {AREAS_OF_EXPERTISE
+                            .filter(topic => topic.toLowerCase().includes(expertiseSearch.toLowerCase()))
+                            .map(topic => {
+                              const isSelected = (watchAreasOfExpertise || []).includes(topic);
+                              return (
+                                <div
+                                  key={topic}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpertise(topic);
+                                  }}
+                                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs sm:text-sm cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? 'bg-primary/15 text-primary font-semibold'
+                                      : 'text-on-surface hover:bg-surface-container-high/50'
+                                  }`}
+                                >
+                                  <span>{topic}</span>
+                                  <div
+                                    className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary border-primary text-white'
+                                        : 'border-outline-variant/50 bg-surface-container-low'
+                                    }`}
+                                  >
+                                    {isSelected && <Check size={12} strokeWidth={3} />}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          {AREAS_OF_EXPERTISE.filter(topic => topic.toLowerCase().includes(expertiseSearch.toLowerCase())).length === 0 && (
+                            <p className="px-4 py-3 text-xs text-on-surface-variant text-center">No matching areas of expertise found</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {watchAreasOfExpertise.includes("Other") && (
                       <div className="mt-2 animate-fade-in">
                         <input
