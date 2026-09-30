@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { Loader2, Send, Calendar as CalendarIcon, Hourglass, ArrowLeft, CheckCircle2, MessageSquare, Link as LinkIcon, Star, AlertTriangle, Video } from "lucide-react";
+import { FREE_MODE } from "../lib/config";
 
 interface ChatProps {
   id: string;
@@ -298,7 +299,8 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
     const durationKey = `${confirmDuration} min`;
     const amountDueRaw = request.mentors.pricing?.[durationKey];
     const amountDue = amountDueRaw ? parseFloat(amountDueRaw) : 0;
-    const paymentStatus = isFreeIntro ? 'not_required' : 'pending';
+    // FREE_MODE: treat every session like the free-intro path (no payment)
+    const paymentStatus = (isFreeIntro || FREE_MODE) ? 'not_required' : 'pending';
 
     const { error } = await supabase
       .from("booking_requests")
@@ -309,7 +311,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
         confirmed_duration_minutes: parseInt(confirmDuration),
         is_free_intro: isFreeIntro,
         payment_status: paymentStatus,
-        amount_due: isFreeIntro ? null : amountDue
+        amount_due: (isFreeIntro || FREE_MODE) ? null : amountDue
       })
       .eq("id", id);
 
@@ -474,8 +476,11 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   const isTimeConfirmed = request.status === "time_confirmed";
   const isCompleted = request.status === "completed";
   const showSessionBlock = isTimeConfirmed || isCompleted;
-  const needsPayment = showSessionBlock && request.payment_status === "pending" && !isMentorView;
-  const isPaidOrFree = request.is_free_intro || request.payment_status === "paid";
+  // FREE_MODE: suppress payment step entirely
+  const needsPayment = !FREE_MODE && showSessionBlock && request.payment_status === "pending" && !isMentorView;
+  // Unlock Meet link when: genuinely paid, free-intro, any not_required session, or FREE_MODE is on.
+  // 'not_required' guard future-proofs sessions confirmed during FREE_MODE if flag is later turned off.
+  const isPaidOrFree = request.is_free_intro || request.payment_status === "paid" || request.payment_status === "not_required" || FREE_MODE;
 
   const handleSubmitRating = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -570,7 +575,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
               </div>
             </div>
 
-            {/* Payment Banner (Student) */}
+            {/* Payment Banner (Student) — hidden in FREE_MODE */}
             {needsPayment && (
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
@@ -591,6 +596,19 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
                     Pay Now
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Free Session notice — shown in FREE_MODE instead of payment step */}
+            {FREE_MODE && showSessionBlock && !isMentorView && !needsPayment && !request.is_free_intro && request.payment_status !== "paid" && (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3">
+                <div className="bg-green-500/20 p-2 rounded-full text-green-500 shrink-0">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-green-400">Free Session</h4>
+                  <p className="text-sm text-on-surface-variant">No payment required — your session is confirmed and ready.</p>
+                </div>
               </div>
             )}
             
