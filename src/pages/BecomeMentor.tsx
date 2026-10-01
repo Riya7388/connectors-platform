@@ -10,6 +10,7 @@ import {
 import { FileUpload } from "../components/FileUpload";
 import { supabase } from "../supabase";
 import { AREAS_OF_EXPERTISE, LANGUAGES } from "../constants/mentorConstants";
+import { FREE_MODE } from "../lib/config";
 
 const DRAFT_STORAGE_KEY = "becomeMentor_draft";
 
@@ -76,7 +77,7 @@ const mentorSchema = z.object({
   prices: z.record(z.string(), z.string()).optional(),
   freeIntro: z.boolean().default(false),
   
-  payoutMethod: z.enum(["bank", "upi"]),
+  payoutMethod: z.enum(["bank", "upi"]).optional().default("upi"),
   bankAccount: z.string().optional(),
   ifscCode: z.string().optional(),
   accountHolder: z.string().optional(),
@@ -115,12 +116,14 @@ const mentorSchema = z.object({
     if (!data.otherExam) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["otherExam"] });
   }
 
-  if (data.payoutMethod === "bank") {
-    if (!data.bankAccount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["bankAccount"] });
-    if (!data.ifscCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["ifscCode"] });
-    if (!data.accountHolder) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["accountHolder"] });
-  } else if (data.payoutMethod === "upi") {
-    if (!data.upiId || !data.upiId.includes('@')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valid UPI ID required (must contain @)", path: ["upiId"] });
+  if (!FREE_MODE) {
+    if (data.payoutMethod === "bank") {
+      if (!data.bankAccount) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["bankAccount"] });
+      if (!data.ifscCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["ifscCode"] });
+      if (!data.accountHolder) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required", path: ["accountHolder"] });
+    } else if (data.payoutMethod === "upi") {
+      if (!data.upiId || !data.upiId.includes('@')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Valid UPI ID required (must contain @)", path: ["upiId"] });
+    }
   }
   
   const currentYear = new Date().getFullYear();
@@ -133,7 +136,7 @@ const mentorSchema = z.object({
   // Pricing Validation
   if (!data.sessionDurations || data.sessionDurations.length === 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select at least one session duration", path: ["sessionDurations"] });
-  } else {
+  } else if (!FREE_MODE) {
     data.sessionDurations.forEach(duration => {
       if (!data.prices || !data.prices[duration] || isNaN(parseFloat(data.prices[duration]))) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Required`, path: ["prices", duration] });
@@ -144,7 +147,7 @@ const mentorSchema = z.object({
 
 type MentorFormValues = z.infer<typeof mentorSchema>;
 
-const DURATIONS = ["15 min", "30 min", "60 min"];
+const DURATIONS = FREE_MODE ? ["15 min", "30 min"] : ["15 min", "30 min", "60 min"];
 const DEGREE_TYPES = ["B.Tech", "M.Tech", "BSc", "BCA", "MCA", "Other"];
 const PROFESSIONAL_CATEGORIES = [
   "Freelancing",
@@ -294,7 +297,7 @@ export const BecomeMentor: React.FC = () => {
       languages: [],
       areasOfExpertise: [],
       expertiseOther: "",
-      sessionDurations: [],
+      sessionDurations: FREE_MODE ? ["15 min", "30 min"] : [],
       payoutMethod: "upi",
       freeIntro: true,
       prices: {},
@@ -396,14 +399,16 @@ export const BecomeMentor: React.FC = () => {
               languages: Array.isArray(mentorDb.languages_known) ? mentorDb.languages_known : [],
               areasOfExpertise: parsedExpertise,
               expertiseOther: mentorDb.expertise_other || "",
-              sessionDurations: Array.isArray(mentorDb.session_durations) ? mentorDb.session_durations : [],
-              prices: mentorDb.pricing || {},
-              freeIntro: mentorDb.free_intro_session ?? true,
+              sessionDurations: Array.isArray(mentorDb.session_durations)
+                ? (FREE_MODE ? mentorDb.session_durations.filter((d: string) => d === "15 min" || d === "30 min") : mentorDb.session_durations)
+                : (FREE_MODE ? ["15 min", "30 min"] : []),
+              prices: FREE_MODE ? {} : (mentorDb.pricing || {}),
+              freeIntro: FREE_MODE ? true : (mentorDb.free_intro_session ?? true),
               payoutMethod: mentorDb.payout_type || "upi",
-              bankAccount: mentorDb.bank_account_number || "",
-              ifscCode: mentorDb.bank_ifsc || "",
-              accountHolder: mentorDb.bank_account_holder || "",
-              upiId: mentorDb.upi_id || "",
+              bankAccount: FREE_MODE ? "" : (mentorDb.bank_account_number || ""),
+              ifscCode: FREE_MODE ? "" : (mentorDb.bank_ifsc || ""),
+              accountHolder: FREE_MODE ? "" : (mentorDb.bank_account_holder || ""),
+              upiId: FREE_MODE ? "" : (mentorDb.upi_id || ""),
               bio: mentorDb.bio || "",
               availabilityTime: mentorDb.availability_time || "",
               customAvailability: mentorDb.availability_time || ""
@@ -428,6 +433,17 @@ export const BecomeMentor: React.FC = () => {
                 ...restFields
               } = draft;
 
+              if (FREE_MODE) {
+                delete (restFields as any).prices;
+                delete (restFields as any).bankAccount;
+                delete (restFields as any).ifscCode;
+                delete (restFields as any).accountHolder;
+                delete (restFields as any).upiId;
+                if (Array.isArray(restFields.sessionDurations)) {
+                  restFields.sessionDurations = restFields.sessionDurations.filter((d: string) => d === "15 min" || d === "30 min");
+                }
+              }
+
               // Check if there is actual saved content
               const hasSavedData = Object.entries(restFields).some(([k, v]) => {
                 if (k === 'freeIntro' || k === 'payoutMethod') return false;
@@ -439,6 +455,10 @@ export const BecomeMentor: React.FC = () => {
               if (hasSavedData) {
                 reset({
                   ...restFields,
+                  sessionDurations: Array.isArray(restFields.sessionDurations) && restFields.sessionDurations.length > 0
+                    ? restFields.sessionDurations
+                    : (FREE_MODE ? ["15 min", "30 min"] : []),
+                  freeIntro: FREE_MODE ? true : ((restFields as any).freeIntro ?? true),
                   profilePhotoUrl: "",
                   govtIdUrl: "",
                   studentIdFrontUrl: "",
@@ -507,14 +527,16 @@ export const BecomeMentor: React.FC = () => {
         languages: allFormValues.languages || [],
         areasOfExpertise: allFormValues.areasOfExpertise || [],
         expertiseOther: allFormValues.expertiseOther || "",
-        sessionDurations: allFormValues.sessionDurations || [],
-        prices: allFormValues.prices || {},
-        freeIntro: allFormValues.freeIntro ?? true,
-        payoutMethod: allFormValues.payoutMethod || "upi",
-        bankAccount: allFormValues.bankAccount || "",
-        ifscCode: allFormValues.ifscCode || "",
-        accountHolder: allFormValues.accountHolder || "",
-        upiId: allFormValues.upiId || "",
+        sessionDurations: FREE_MODE
+          ? (allFormValues.sessionDurations || []).filter((d: string) => d === "15 min" || d === "30 min")
+          : (allFormValues.sessionDurations || []),
+        prices: FREE_MODE ? {} : (allFormValues.prices || {}),
+        freeIntro: FREE_MODE ? true : (allFormValues.freeIntro ?? true),
+        payoutMethod: FREE_MODE ? "upi" : (allFormValues.payoutMethod || "upi"),
+        bankAccount: FREE_MODE ? "" : (allFormValues.bankAccount || ""),
+        ifscCode: FREE_MODE ? "" : (allFormValues.ifscCode || ""),
+        accountHolder: FREE_MODE ? "" : (allFormValues.accountHolder || ""),
+        upiId: FREE_MODE ? "" : (allFormValues.upiId || ""),
         availabilityTime: allFormValues.availabilityTime || "",
         customAvailability: allFormValues.customAvailability || "",
         bio: allFormValues.bio || "",
@@ -587,7 +609,7 @@ export const BecomeMentor: React.FC = () => {
         languages: [],
         areasOfExpertise: [],
         expertiseOther: "",
-        sessionDurations: [],
+        sessionDurations: FREE_MODE ? ["15 min", "30 min"] : [],
         prices: {},
         freeIntro: true,
         payoutMethod: "upi",
@@ -822,14 +844,16 @@ export const BecomeMentor: React.FC = () => {
         areas_of_expertise: cleanedExpertise.length > 0 ? cleanedExpertise : null,
         expertise_other: customExpertise || null,
         languages_known: data.languages,
-        session_durations: data.sessionDurations,
-        pricing: data.prices,
-        free_intro_session: data.freeIntro,
-        payout_type: data.payoutMethod,
-        bank_account_number: data.bankAccount,
-        bank_ifsc: data.ifscCode,
-        bank_account_holder: data.accountHolder,
-        upi_id: data.upiId,
+        session_durations: FREE_MODE
+          ? (data.sessionDurations || []).filter((d: string) => d === "15 min" || d === "30 min")
+          : data.sessionDurations,
+        pricing: FREE_MODE ? {} : (data.prices || {}),
+        free_intro_session: FREE_MODE ? true : data.freeIntro,
+        payout_type: FREE_MODE ? null : data.payoutMethod,
+        bank_account_number: FREE_MODE ? null : (data.bankAccount || null),
+        bank_ifsc: FREE_MODE ? null : (data.ifscCode || null),
+        bank_account_holder: FREE_MODE ? null : (data.accountHolder || null),
+        upi_id: FREE_MODE ? null : (data.upiId || null),
         bio: data.bio,
         availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
         achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
@@ -891,7 +915,11 @@ export const BecomeMentor: React.FC = () => {
             <div className="space-y-4">
               <span className="text-secondary-fixed-dim font-bold text-xs uppercase tracking-widest">Empower Future Engineers</span>
               <h1 className="font-extrabold text-4xl leading-tight">
-                Share your <span className="text-primary">Wisdom.</span> Get Paid.
+                {FREE_MODE ? (
+                  <>Share your <span className="text-primary">Wisdom.</span> Guide Students.</>
+                ) : (
+                  <>Share your <span className="text-primary">Wisdom.</span> Get Paid.</>
+                )}
               </h1>
               <p className="text-on-surface-variant text-base leading-relaxed max-w-sm">
                 Join the elite network of mentors from top universities and help juniors navigate their technical journeys.
@@ -899,15 +927,17 @@ export const BecomeMentor: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="glass-card p-4 rounded-2xl flex items-center gap-4 border border-white/5">
-                <div className="w-10 h-10 bg-secondary-container/20 rounded-full flex items-center justify-center text-secondary-fixed-dim shrink-0">
-                  <DollarSign size={20} />
+              {!FREE_MODE && (
+                <div className="glass-card p-4 rounded-2xl flex items-center gap-4 border border-white/5">
+                  <div className="w-10 h-10 bg-secondary-container/20 rounded-full flex items-center justify-center text-secondary-fixed-dim shrink-0">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm">Earn Money</h3>
+                    <p className="text-xs text-on-surface-variant">Set your own rates and get paid.</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm">Earn Money</h3>
-                  <p className="text-xs text-on-surface-variant">Set your own rates and get paid.</p>
-                </div>
-              </div>
+              )}
 
               <div className="glass-card p-4 rounded-2xl flex items-center gap-4 border border-white/5">
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
@@ -2063,48 +2093,80 @@ export const BecomeMentor: React.FC = () => {
                     {errors.languages && <p className="text-xs text-red-500">{errors.languages.message}</p>}
                   </div>
 
-                  <div className="space-y-4">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Session Durations & Pricing</label>
-                    <div className="space-y-3">
-                      {DURATIONS.map(duration => (
-                        <div key={duration} className="flex items-center gap-4 bg-surface-container-low/30 p-3 rounded-xl border border-outline-variant/10">
-                          <label className="flex items-center cursor-pointer gap-2 w-32">
-                            <input type="checkbox" value={duration} {...register("sessionDurations")} className="rounded border-outline-variant/30" />
-                            <span className="text-sm font-semibold">{duration}</span>
+                  {FREE_MODE ? (
+                    <div className="space-y-4">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Session Durations</label>
+                      <div className="flex flex-wrap gap-4">
+                        {DURATIONS.map(duration => (
+                          <label key={duration} className="flex items-center cursor-pointer gap-2.5 bg-surface-container-low/40 px-4 py-3 rounded-xl border border-outline-variant/20 hover:border-primary/40 transition-colors">
+                            <input 
+                              type="checkbox" 
+                              value={duration} 
+                              {...register("sessionDurations")} 
+                              className="rounded border-outline-variant/30 text-primary focus:ring-primary w-4 h-4" 
+                            />
+                            <span className="text-sm font-semibold text-on-surface">{duration}</span>
                           </label>
-                          
-                          {watchSessionDurations.includes(duration) && (
-                            <div className="flex-1 max-w-[200px]">
-                              <div className="relative">
-                                <input 
-                                  type="number" 
-                                  {...register(`prices.${duration}` as any)} 
-                                  className={`w-full bg-surface-container-low border ${(errors.prices as any)?.[duration] ? 'border-red-500' : 'border-outline-variant/30'} px-3 py-2 pl-8 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`} 
-                                  placeholder="Rate per session" 
-                                />
-                                <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
-                              </div>
-                              {(errors.prices as any)?.[duration] && (
-                                <p className="text-[10px] text-red-500 mt-1">{(errors.prices as any)[duration].message}</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {errors.sessionDurations && <p className="text-xs text-red-500">{errors.sessionDurations.message}</p>}
-                  </div>
+                        ))}
+                      </div>
+                      {errors.sessionDurations && <p className="text-xs text-red-500">{errors.sessionDurations.message}</p>}
 
-                  <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/20">
-                    <div>
-                      <h4 className="font-bold text-sm text-on-surface">Offer Free Intro Session?</h4>
-                      <p className="text-xs text-on-surface-variant mt-0.5">Your first 15-min session with each student will be free.</p>
+                      {/* FREE Mode Info Card */}
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-purple-500/10 to-primary/5 border border-primary/20 flex items-start sm:items-center gap-3.5">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-black tracking-wider uppercase brand-gradient-bg text-white shadow-sm flex-shrink-0">
+                          FREE
+                        </span>
+                        <p className="text-sm text-on-surface font-medium leading-relaxed">
+                          Sessions are completely free on Connectors for now. You are helping students — that's the whole point.
+                        </p>
+                      </div>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" {...register("freeIntro")} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-surface-container rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
-                  </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Session Durations & Pricing</label>
+                      <div className="space-y-3">
+                        {DURATIONS.map(duration => (
+                          <div key={duration} className="flex items-center gap-4 bg-surface-container-low/30 p-3 rounded-xl border border-outline-variant/10">
+                            <label className="flex items-center cursor-pointer gap-2 w-32">
+                              <input type="checkbox" value={duration} {...register("sessionDurations")} className="rounded border-outline-variant/30" />
+                              <span className="text-sm font-semibold">{duration}</span>
+                            </label>
+                            
+                            {watchSessionDurations.includes(duration) && (
+                              <div className="flex-1 max-w-[200px]">
+                                <div className="relative">
+                                  <input 
+                                    type="number" 
+                                    {...register(`prices.${duration}` as any)} 
+                                    className={`w-full bg-surface-container-low border ${(errors.prices as any)?.[duration] ? 'border-red-500' : 'border-outline-variant/30'} px-3 py-2 pl-8 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`} 
+                                    placeholder="Rate per session" 
+                                  />
+                                  <IndianRupee className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                </div>
+                                {(errors.prices as any)?.[duration] && (
+                                  <p className="text-[10px] text-red-500 mt-1">{(errors.prices as any)[duration].message}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {errors.sessionDurations && <p className="text-xs text-red-500">{errors.sessionDurations.message}</p>}
+                    </div>
+                  )}
+
+                  {!FREE_MODE && (
+                    <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/20">
+                      <div>
+                        <h4 className="font-bold text-sm text-on-surface">Offer Free Intro Session?</h4>
+                        <p className="text-xs text-on-surface-variant mt-0.5">Your first 15-min session with each student will be free.</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" {...register("freeIntro")} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-surface-container rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                      </label>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">When are you usually free?</label>
@@ -2127,49 +2189,51 @@ export const BecomeMentor: React.FC = () => {
                 </div>
 
                 {/* --- E. Payout Details --- */}
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">E. Payout Details</h3>
-                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5"><ShieldCheck size={14} className="text-green-500" /> This information is encrypted and only used for payouts.</p>
-                  
-                  <div className="flex gap-4">
-                    <label className="flex items-center cursor-pointer gap-2">
-                      <input type="radio" value="upi" {...register("payoutMethod")} className="text-primary" />
-                      <span className="text-sm font-semibold">UPI ID</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer gap-2">
-                      <input type="radio" value="bank" {...register("payoutMethod")} className="text-primary" />
-                      <span className="text-sm font-semibold">Bank Transfer</span>
-                    </label>
+                {!FREE_MODE && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-primary border-b border-primary/20 pb-2">E. Payout Details</h3>
+                    <p className="text-xs text-on-surface-variant flex items-center gap-1.5"><ShieldCheck size={14} className="text-green-500" /> This information is encrypted and only used for payouts.</p>
+                    
+                    <div className="flex gap-4">
+                      <label className="flex items-center cursor-pointer gap-2">
+                        <input type="radio" value="upi" {...register("payoutMethod")} className="text-primary" />
+                        <span className="text-sm font-semibold">UPI ID</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer gap-2">
+                        <input type="radio" value="bank" {...register("payoutMethod")} className="text-primary" />
+                        <span className="text-sm font-semibold">Bank Transfer</span>
+                      </label>
+                    </div>
+
+                    {watchPayoutMethod === "upi" && (
+                      <div className="space-y-2 max-w-md">
+                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">UPI ID</label>
+                        <input {...register("upiId")} className={`w-full bg-surface-container-low/50 border ${errors.upiId ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="username@upi" />
+                        {errors.upiId && <p className="text-xs text-red-500">{errors.upiId.message}</p>}
+                      </div>
+                    )}
+
+                    {watchPayoutMethod === "bank" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2 md:col-span-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Account Holder Name</label>
+                          <input {...register("accountHolder")} className={`w-full bg-surface-container-low/50 border ${errors.accountHolder ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
+                          {errors.accountHolder && <p className="text-xs text-red-500">{errors.accountHolder.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Account Number</label>
+                          <input type="password" {...register("bankAccount")} className={`w-full bg-surface-container-low/50 border ${errors.bankAccount ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
+                          {errors.bankAccount && <p className="text-xs text-red-500">{errors.bankAccount.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">IFSC Code</label>
+                          <input {...register("ifscCode")} className={`w-full bg-surface-container-low/50 border ${errors.ifscCode ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
+                          {errors.ifscCode && <p className="text-xs text-red-500">{errors.ifscCode.message}</p>}
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {watchPayoutMethod === "upi" && (
-                    <div className="space-y-2 max-w-md">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">UPI ID</label>
-                      <input {...register("upiId")} className={`w-full bg-surface-container-low/50 border ${errors.upiId ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="username@upi" />
-                      {errors.upiId && <p className="text-xs text-red-500">{errors.upiId.message}</p>}
-                    </div>
-                  )}
-
-                  {watchPayoutMethod === "bank" && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2 md:col-span-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Account Holder Name</label>
-                        <input {...register("accountHolder")} className={`w-full bg-surface-container-low/50 border ${errors.accountHolder ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
-                        {errors.accountHolder && <p className="text-xs text-red-500">{errors.accountHolder.message}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Account Number</label>
-                        <input type="password" {...register("bankAccount")} className={`w-full bg-surface-container-low/50 border ${errors.bankAccount ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
-                        {errors.bankAccount && <p className="text-xs text-red-500">{errors.bankAccount.message}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">IFSC Code</label>
-                        <input {...register("ifscCode")} className={`w-full bg-surface-container-low/50 border ${errors.ifscCode ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} />
-                        {errors.ifscCode && <p className="text-xs text-red-500">{errors.ifscCode.message}</p>}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 <div className="pt-8 border-t border-outline-variant/20 flex flex-col gap-4">
                   {/* Phone verification warning */}
