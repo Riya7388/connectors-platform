@@ -10,3 +10,4 @@
  * To disable:          set the value to anything other than 'true', or remove the variable entirely.
  */
 export const FREE_MODE = import.meta.env.VITE_FREE_MODE === "true";
+export const FREE_MODE_DURATIONS = [15, 30];

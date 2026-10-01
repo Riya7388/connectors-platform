@@ -21,6 +21,7 @@ import {
   PRESET_EXPERTISE_OPTIONS,
   LANGUAGES as LANGUAGE_OPTIONS,
 } from "../constants/mentorConstants";
+import { FREE_MODE } from "../lib/config";
 
 /* -------------------------------------------------
    Types
@@ -516,8 +517,9 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
     if (selectedBranches.length > 0 || selectedExamBranches.length > 0) count++;
     if (verifiedOnly) count++;
     if (selectedExpertise.length > 0) count++;
-    if (selectedPriceRange !== null) count++;
-    if (freeIntroOnly) count++;
+    // In FREE_MODE, price range and free-intro are hidden — never count them
+    if (!FREE_MODE && selectedPriceRange !== null) count++;
+    if (!FREE_MODE && freeIntroOnly) count++;
     if (selectedLanguages.length > 0) count++;
     if (selectedRating !== null) count++;
     return count;
@@ -579,17 +581,17 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
           })) ||
         (selectedExpertise.includes("Other") && !!m.expertise_other);
 
-      // 5. Price range
+      // 5. Price range — disabled in FREE_MODE (new mentors have empty pricing)
       let matchesPrice = true;
-      if (selectedPriceRange !== null) {
+      if (!FREE_MODE && selectedPriceRange !== null) {
         const range = PRICE_RANGES[selectedPriceRange];
         const minPrice = getMinPrice(m.pricing);
         matchesPrice =
           minPrice !== null && minPrice >= range.min && minPrice <= range.max;
       }
 
-      // 6. Free intro session
-      const matchesFreeIntro = !freeIntroOnly || m.free_intro_session;
+      // 6. Free intro session — disabled in FREE_MODE (every session is free)
+      const matchesFreeIntro = FREE_MODE || !freeIntroOnly || m.free_intro_session;
 
       // 7. Language (OR within)
       const matchesLanguage =
@@ -909,75 +911,79 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
 
             <FilterDivider />
 
-            {/* 5. Price Range — Radio */}
-            <div>
-              <label className="block mb-2 text-xs font-semibold uppercase text-on-surface-variant tracking-wider">
-                Price Range
-              </label>
-              <div className="space-y-1.5">
-                {PRICE_RANGES.map((range, idx) => (
-                  <label
-                    key={range.label}
-                    className="flex items-center gap-2.5 cursor-pointer group"
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        selectedPriceRange === idx
-                          ? "border-primary"
-                          : "border-outline-variant/40 group-hover:border-primary/50"
-                      }`}
-                    >
-                      {selectedPriceRange === idx && (
-                        <div className="w-2 h-2 rounded-full bg-primary" />
-                      )}
-                    </div>
-                    <span
-                      className={`text-xs transition-colors ${
-                        selectedPriceRange === idx
-                          ? "text-primary font-semibold"
-                          : "text-on-surface-variant group-hover:text-on-surface"
-                      }`}
-                      onClick={() =>
-                        setSelectedPriceRange(
-                          selectedPriceRange === idx ? null : idx
-                        )
-                      }
-                    >
-                      {range.label}
-                    </span>
+            {/* 5. Price Range — Radio (hidden in FREE_MODE) */}
+            {!FREE_MODE && (
+              <>
+                <div>
+                  <label className="block mb-2 text-xs font-semibold uppercase text-on-surface-variant tracking-wider">
+                    Price Range
                   </label>
-                ))}
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    {PRICE_RANGES.map((range, idx) => (
+                      <label
+                        key={range.label}
+                        className="flex items-center gap-2.5 cursor-pointer group"
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            selectedPriceRange === idx
+                              ? "border-primary"
+                              : "border-outline-variant/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {selectedPriceRange === idx && (
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <span
+                          className={`text-xs transition-colors ${
+                            selectedPriceRange === idx
+                              ? "text-primary font-semibold"
+                              : "text-on-surface-variant group-hover:text-on-surface"
+                          }`}
+                          onClick={() =>
+                            setSelectedPriceRange(
+                              selectedPriceRange === idx ? null : idx
+                            )
+                          }
+                        >
+                          {range.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-            <FilterDivider />
+                <FilterDivider />
 
-            {/* 6. Free Intro Session — Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift size={14} className="text-amber-400" />
-                <span className="text-xs font-semibold uppercase text-on-surface-variant tracking-wider">
-                  Free Intro Session
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFreeIntroOnly((v) => !v)}
-                className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${
-                  freeIntroOnly ? "bg-primary" : "bg-surface-container-highest"
-                }`}
-                aria-checked={freeIntroOnly}
-                role="switch"
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                    freeIntroOnly ? "translate-x-5" : "translate-x-0.5"
-                  } mt-0.5`}
-                />
-              </button>
-            </div>
+                {/* 6. Free Intro Session — Toggle (hidden in FREE_MODE) */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Gift size={14} className="text-amber-400" />
+                    <span className="text-xs font-semibold uppercase text-on-surface-variant tracking-wider">
+                      Free Intro Session
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFreeIntroOnly((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${
+                      freeIntroOnly ? "bg-primary" : "bg-surface-container-highest"
+                    }`}
+                    aria-checked={freeIntroOnly}
+                    role="switch"
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                        freeIntroOnly ? "translate-x-5" : "translate-x-0.5"
+                      } mt-0.5`}
+                    />
+                  </button>
+                </div>
 
-            <FilterDivider />
+                <FilterDivider />
+              </>
+            )}
 
             {/* 7. Language — Multi-Select Checkboxes */}
             <div>
@@ -1126,13 +1132,14 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   <button onClick={() => setSelectedExpertise((p) => p.filter((x) => x !== e))}><X size={10} /></button>
                 </span>
               ))}
-              {selectedPriceRange !== null && (
+              {/* Price / Free-Intro pills hidden in FREE_MODE */}
+              {!FREE_MODE && selectedPriceRange !== null && (
                 <span className="filter-pill">
                   {PRICE_RANGES[selectedPriceRange].label}
                   <button onClick={() => setSelectedPriceRange(null)}><X size={10} /></button>
                 </span>
               )}
-              {freeIntroOnly && (
+              {!FREE_MODE && freeIntroOnly && (
                 <span className="filter-pill">
                   Free Intro
                   <button onClick={() => setFreeIntroOnly(false)}><X size={10} /></button>
@@ -1276,7 +1283,8 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                         Verified
                       </span>
                     )}
-                    {mentor.free_intro_session && (
+                    {/* Free Intro badge — hidden in FREE_MODE (every session is free) */}
+                    {!FREE_MODE && mentor.free_intro_session && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
                         Free Intro
                       </span>
@@ -1344,24 +1352,31 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
 
                   {/* 8. Bottom row */}
                   <div className="pt-3 border-t border-outline-variant/10 flex items-end justify-between gap-2 mt-auto">
-                    <div className="space-y-1.5">
-                      <div>
-                        <p className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">Starting at</p>
-                        <p className="text-lg font-extrabold text-on-surface">
-                          {getMinPrice(mentor.pricing) !== null
-                            ? `₹${getMinPrice(mentor.pricing)}`
-                            : "—"}
-                        </p>
-                      </div>
-
-                      {/* Green Free 15-min Intro badge with gift-box icon if free_intro_session is true */}
-                      {mentor.free_intro_session && (
-                        <div className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-green-500/25 w-fit">
-                          <Gift size={12} className="flex-shrink-0" />
-                          <span>Free 15-min Intro</span>
+                    {FREE_MODE ? (
+                      /* In FREE_MODE: show a gradient "Free" pill instead of price + free-intro badge */
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase brand-gradient-bg text-white shadow-sm">
+                        Free
+                      </span>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div>
+                          <p className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">Starting at</p>
+                          <p className="text-lg font-extrabold text-on-surface">
+                            {getMinPrice(mentor.pricing) !== null
+                              ? `₹${getMinPrice(mentor.pricing)}`
+                              : "—"}
+                          </p>
                         </div>
-                      )}
-                    </div>
+
+                        {/* Green Free 15-min Intro badge with gift-box icon if free_intro_session is true */}
+                        {mentor.free_intro_session && (
+                          <div className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-green-500/25 w-fit">
+                            <Gift size={12} className="flex-shrink-0" />
+                            <span>Free 15-min Intro</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <button className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md group-hover:scale-105">
                       View Profile

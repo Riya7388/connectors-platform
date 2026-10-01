@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { FREE_MODE } from "../lib/config";
 
 interface PricingSectionProps {
   setActiveTab?: (tab: string) => void;
@@ -18,13 +19,21 @@ const PricingSection: FC<PricingSectionProps> = ({ setActiveTab }) => {
         <div className="rounded-[35px] border border-purple-500/40 p-10 bg-[#090909]/90 shadow-[0_0_80px_rgba(168,85,247,.35)]">
           {/* Heading */}
           <h2 className="text-center text-5xl font-bold">
-            <span className="text-orange-400">Simple, </span>
-            <span className="text-red-400">Transparent </span>
-            <span className="text-purple-400">Pricing</span>
+            {FREE_MODE ? (
+              <span className="brand-gradient-text">Completely Free for Students</span>
+            ) : (
+              <>
+                <span className="text-orange-400">Simple, </span>
+                <span className="text-red-400">Transparent </span>
+                <span className="text-purple-400">Pricing</span>
+              </>
+            )}
           </h2>
 
           <p className="text-center text-gray-400 mt-4 text-lg">
-            No subscriptions, no hidden fees — pay only for the sessions you book. Many mentors offer a free first session.
+            {FREE_MODE
+              ? "100% free for students — no subscriptions, no hidden fees, no payments. Just real guidance."
+              : "No subscriptions, no hidden fees — pay only for the sessions you book. Many mentors offer a free first session."}
           </p>
 
           {/* Cards */}
@@ -35,10 +44,26 @@ const PricingSection: FC<PricingSectionProps> = ({ setActiveTab }) => {
               <p className="text-gray-400 mt-3">Perfect for getting started</p>
 
               <div className="mt-8">
-                <span className="text-4xl font-bold text-orange-400">
-                  ₹0 – ₹200
-                </span>
-                <p className="text-gray-400 mt-3">/ session</p>
+                {FREE_MODE ? (
+                  <div>
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-2xl font-bold text-gray-500 line-through decoration-gray-400/70 decoration-2 opacity-50">
+                        ₹0 – ₹200
+                      </span>
+                      <span className="text-5xl font-extrabold brand-gradient-text tracking-wide">
+                        FREE
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-2 font-medium">for every session</p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-4xl font-bold text-orange-400">
+                      ₹0 – ₹200
+                    </span>
+                    <p className="text-gray-400 mt-3">/ session</p>
+                  </div>
+                )}
               </div>
 
               <ul className="mt-6 space-y-2 text-sm text-gray-400">
@@ -65,10 +90,26 @@ const PricingSection: FC<PricingSectionProps> = ({ setActiveTab }) => {
               <p className="text-gray-400 mt-3">In-depth guidance from experienced seniors</p>
 
               <div className="mt-8">
-                <span className="text-4xl font-bold text-pink-500">
-                  ₹200 – ₹500
-                </span>
-                <p className="text-gray-400 mt-3">/ session</p>
+                {FREE_MODE ? (
+                  <div>
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-2xl font-bold text-gray-500 line-through decoration-gray-400/70 decoration-2 opacity-50">
+                        ₹200 – ₹500
+                      </span>
+                      <span className="text-5xl font-extrabold brand-gradient-text tracking-wide">
+                        FREE
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-2 font-medium">for every session</p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-4xl font-bold text-pink-500">
+                      ₹200 – ₹500
+                    </span>
+                    <p className="text-gray-400 mt-3">/ session</p>
+                  </div>
+                )}
               </div>
 
               <ul className="mt-6 space-y-2 text-sm text-gray-400">
@@ -91,10 +132,26 @@ const PricingSection: FC<PricingSectionProps> = ({ setActiveTab }) => {
               <p className="text-gray-400 mt-3">Extended sessions with top experts</p>
 
               <div className="mt-8">
-                <span className="text-4xl font-bold text-purple-400">
-                  ₹500 – ₹1000
-                </span>
-                <p className="text-gray-400 mt-3">/ session</p>
+                {FREE_MODE ? (
+                  <div>
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-2xl font-bold text-gray-500 line-through decoration-gray-400/70 decoration-2 opacity-50">
+                        ₹500 – ₹1000
+                      </span>
+                      <span className="text-5xl font-extrabold brand-gradient-text tracking-wide">
+                        FREE
+                      </span>
+                    </div>
+                    <p className="text-gray-400 mt-2 font-medium">for every session</p>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-4xl font-bold text-purple-400">
+                      ₹500 – ₹1000
+                    </span>
+                    <p className="text-gray-400 mt-3">/ session</p>
+                  </div>
+                )}
               </div>
 
               <ul className="mt-6 space-y-2 text-sm text-gray-400">

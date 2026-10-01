@@ -12,6 +12,7 @@ import {
   Trophy,
   Target
 } from "lucide-react";
+import { FREE_MODE, FREE_MODE_DURATIONS } from "../lib/config";
 
 interface Mentor {
   id: string;
@@ -217,14 +218,25 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       rawDurations = ["15 min", "30 min"];
     }
 
+    if (FREE_MODE) {
+      rawDurations = rawDurations.filter((durStr) => {
+        const mins = parseInt(durStr);
+        return FREE_MODE_DURATIONS.includes(mins);
+      });
+      if (rawDurations.length === 0) {
+        rawDurations = ["15 min", "30 min"];
+      }
+    }
+
     const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
 
     return sorted.map((durStr) => {
       const mins = parseInt(durStr);
       const label = mins >= 60 ? `${mins / 60} Hour${mins > 60 ? 's' : ''}` : `${mins} min`;
+      // In FREE_MODE, never show a price — every session is free
       const priceVal = m.pricing?.[durStr] || m.pricing?.[`${mins} min`];
       const isFree = mins === 15 && m.free_intro_session;
-      const priceText = isFree ? "Free Intro" : (priceVal ? `₹${priceVal}` : "Custom");
+      const priceText = FREE_MODE ? "" : (isFree ? "Free Intro" : (priceVal ? `₹${priceVal}` : "Custom"));
       return { durStr, mins: String(mins), label, priceText };
     });
   };
@@ -445,14 +457,25 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
               </div>
             )}
 
-            <div className="pt-4 space-y-3 w-full">
-              {formatPricing(mentor.pricing)}
-              {mentor.free_intro_session && (
-                <div className="inline-block bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase shadow-[0_0_15px_rgba(245,158,11,0.15)]">
-                  Free Intro Session Available
-                </div>
-              )}
-            </div>
+            {FREE_MODE ? (
+              <div className="pt-4 flex flex-col items-center gap-2">
+                <span className="px-3.5 py-1 rounded-full text-xs font-black tracking-wider uppercase brand-gradient-bg text-white shadow-sm">
+                  Completely Free
+                </span>
+                <p className="text-sm font-medium text-on-surface-variant text-center">
+                  Let's connect — I'll guide you on your next journey.
+                </p>
+              </div>
+            ) : (
+              <div className="pt-4 space-y-3 w-full">
+                {formatPricing(mentor.pricing)}
+                {mentor.free_intro_session && (
+                  <div className="inline-block bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                    Free Intro Session Available
+                  </div>
+                )}
+              </div>
+            )}
 
             <button 
               onClick={handleConnectClick}
@@ -595,10 +618,17 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
               >
                 {getAvailableDurations(mentor).map((opt) => (
                   <option key={opt.mins} value={opt.mins} className="bg-surface-container text-on-surface font-medium">
-                    {opt.label} — {opt.priceText}
+                    {FREE_MODE ? opt.label : `${opt.label} — ${opt.priceText}`}
                   </option>
                 ))}
               </select>
+              {/* In FREE_MODE: show 'Completely free session' note; otherwise no note here */}
+              {FREE_MODE && (
+                <p className="mt-2 text-xs text-green-400 font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>
+                  Completely free session
+                </p>
+              )}
             </div>
 
             <textarea

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { Loader2, Send, Calendar as CalendarIcon, Hourglass, ArrowLeft, CheckCircle2, MessageSquare, Link as LinkIcon, Star, AlertTriangle, Video } from "lucide-react";
-import { FREE_MODE } from "../lib/config";
+import { FREE_MODE, FREE_MODE_DURATIONS } from "../lib/config";
 
 interface ChatProps {
   id: string;
@@ -86,7 +86,13 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       if (studentRequestedMins) {
         setConfirmDuration(String(studentRequestedMins));
       } else {
-        const rawDurations: string[] = mentorData?.session_durations ?? [];
+        let rawDurations: string[] = mentorData?.session_durations ?? [];
+        if (FREE_MODE) {
+          rawDurations = rawDurations.filter((d) => {
+            const mins = parseInt(d);
+            return FREE_MODE_DURATIONS.includes(mins);
+          });
+        }
         if (rawDurations.length > 0) {
           const sorted = [...rawDurations].sort((a, b) => parseInt(a) - parseInt(b));
           setConfirmDuration(parseInt(sorted[0]).toString());
