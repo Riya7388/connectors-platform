@@ -788,6 +788,31 @@ export const BecomeMentor: React.FC = () => {
     }
     setPhoneWarning(false);
     
+    // Build the comma-separated proof URL string from the achievementProofs state.
+    // Format expected by the app and admin: comma-separated URLs (or empty string).
+    // Parsed back on load with: govt_id_url.split(',').map(s => s.trim()).filter(Boolean)
+    const proofUrlString = achievementProofs.filter(url => url.trim() !== "").join(", ") || "";
+
+    // Validate and clean achievements (max 30 words each)
+    const cleanedAchievements = achievements.map((a) => a.trim()).filter((a) => a.length > 0);
+    if (cleanedAchievements.some((a) => getWordCount(a) > 30)) {
+      alert("Each achievement must be 30 words or less. Please review and try again.");
+      return;
+    }
+
+    // Validate and clean goals (max 30 words each)
+    const cleanedGoals = goals.map((g) => g.trim()).filter((g) => g.length > 0);
+    if (cleanedGoals.some((g) => getWordCount(g) > 30)) {
+      alert("Each goal must be 30 words or less. Please review and try again.");
+      return;
+    }
+
+    // Handle areas of expertise: replace "Other" with custom text if provided
+    const customExpertise = data.expertiseOther?.trim();
+    const cleanedExpertise = (data.areasOfExpertise || [])
+      .map((item) => (item === "Other" ? customExpertise || "" : item))
+      .filter((item) => item.length > 0);
+
     setIsSubmitting(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
