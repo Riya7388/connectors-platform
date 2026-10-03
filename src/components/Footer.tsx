@@ -1,4 +1,5 @@
 import React from "react";
+import { SUPPORT_EMAIL } from "../lib/legal";
 
 interface FooterProps {
   setActiveTab: (tab: string) => void;
@@ -80,9 +81,20 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-400 transition hover:text-pink-400">
-                  Terms of Service
-                </a>
+                <button
+                  onClick={() => setActiveTab("terms")}
+                  className="text-gray-400 transition hover:text-pink-400 text-left"
+                >
+                  Terms &amp; Conditions
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setActiveTab("faq")}
+                  className="text-gray-400 transition hover:text-pink-400 text-left"
+                >
+                  FAQ
+                </button>
               </li>
               <li>
                 <a href="#" className="text-gray-400 transition hover:text-pink-400">
@@ -90,7 +102,10 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-400 transition hover:text-pink-400">
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="text-gray-400 transition hover:text-pink-400"
+                >
                   Contact
                 </a>
               </li>

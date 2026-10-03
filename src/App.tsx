@@ -10,6 +10,8 @@ import { MentorProfile } from "./pages/MentorProfile";
 import { Auth } from "./pages/Auth";
 import { Dashboard } from "./pages/Dashboard";
 import { Chat } from "./pages/Chat";
+import { Terms } from "./pages/Terms";
+import { FAQ } from "./pages/FAQ";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -99,6 +101,10 @@ function App() {
         return <FindMentor setActiveTab={handleSetActiveTab} />;
       case "become-mentor":
         return <BecomeMentor />;
+      case "terms":
+        return <Terms setActiveTab={handleSetActiveTab} />;
+      case "faq":
+        return <FAQ setActiveTab={handleSetActiveTab} />;
       case "dashboard":
         return <Dashboard setActiveTab={handleSetActiveTab} />;
       default:
@@ -123,8 +129,28 @@ function App() {
     );
   }
 
-  // No session → full-screen auth (no navbar / footer / chatbot)
+  // Public routes accessible without session
+  const isPublicRoute = activeTab === "terms" || activeTab === "faq";
+
+  // No session → if viewing a public route, render public shell; otherwise full-screen auth
   if (!session) {
+    if (isPublicRoute) {
+      return (
+        <div className="min-h-screen bg-background text-on-surface flex flex-col font-sans transition-colors duration-300">
+          <Navbar
+            activeTab={activeTab}
+            setActiveTab={handleSetActiveTab}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+          />
+          <div className="flex-1 w-full max-w-7xl mx-auto px-0">
+            {renderActivePage()}
+          </div>
+          <Footer setActiveTab={handleSetActiveTab} />
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-background text-on-surface font-sans transition-colors duration-300">
         <Auth setActiveTab={handleSetActiveTab} />
