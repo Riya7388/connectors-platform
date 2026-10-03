@@ -1,7 +1,9 @@
 import React from "react";
-import { GraduationCap, Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck, Compass } from "lucide-react";
+import { Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck, Compass, HelpCircle } from "lucide-react";
 import PricingSection from "../components/PricingSection";
 import HowItWorks from "../components/HowItWorks";
+import { FAQ_DATA } from "../lib/faqData";
+import { FaqAccordion } from "../components/FaqAccordion";
 
 interface HomeProps {
   setActiveTab: (tab: string) => void;
@@ -212,6 +214,48 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
             className="brand-gradient-bg text-white hover:scale-105 active:scale-95 px-8 py-4 rounded-xl font-bold text-sm transition-all"
           >
             Apply to Join as Mentor
+          </button>
+        </div>
+      </section>
+
+      {/* Frequently Asked Questions Section */}
+      <section className="py-16 px-6 max-w-3xl mx-auto w-full">
+        <div className="text-center mb-10 space-y-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+            <HelpCircle size={14} />
+            FAQ
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-on-surface">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-sm sm:text-base text-on-surface-variant/80 max-w-md mx-auto">
+            Quick answers for students and mentors
+          </p>
+        </div>
+
+        {/* 5-Item Accordion */}
+        <FaqAccordion
+          items={[
+            FAQ_DATA.find((item) => item.question === "What is Connectors?")!,
+            FAQ_DATA.find((item) => item.question === "Is Connectors free?")!,
+            FAQ_DATA.find((item) => item.question === "Who can become a mentor?")!,
+            FAQ_DATA.find((item) => item.question === "Are mentors verified?")!,
+            FAQ_DATA.find((item) => item.question === "Can I report inappropriate behaviour?")!,
+          ].filter(Boolean)}
+          showNumbers={false}
+        />
+
+        {/* View all questions button */}
+        <div className="mt-10 text-center">
+          <button
+            onClick={() => {
+              setActiveTab("faq");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 hover:border-primary/40 text-sm font-semibold text-on-surface transition-all duration-200 hover:shadow-[0_0_16px_rgba(249,115,22,0.15)] group"
+          >
+            View all questions
+            <ArrowRight size={16} className="text-primary group-hover:translate-x-1 transition-transform duration-200" />
           </button>
         </div>
       </section>
