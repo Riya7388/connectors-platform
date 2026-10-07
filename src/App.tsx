@@ -12,6 +12,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { Chat } from "./pages/Chat";
 import { Terms } from "./pages/Terms";
 import { FAQ } from "./pages/FAQ";
+import { Admin } from "./pages/Admin";
+import { SpeakerProfile } from "./pages/SpeakerProfile";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -26,6 +28,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Sync activeTab changes to localStorage and hash
   const handleSetActiveTab = (tab: string) => {
@@ -59,11 +62,30 @@ function App() {
     }
   }, [darkMode]);
 
+  const checkAdminStatus = async (userId?: string) => {
+    if (!userId) {
+      setIsAdmin(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      setIsAdmin(!!data && !error);
+    } catch {
+      setIsAdmin(false);
+    }
+  };
+
   // Auth guard — session state drives everything
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setSessionLoading(false);
+      checkAdminStatus(session?.user?.id);
     });
 
     const {
@@ -71,6 +93,7 @@ function App() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setSessionLoading(false);
+      checkAdminStatus(session?.user?.id);
 
       // Post-login redirect on explicit sign-in event only (do not disrupt reloaded/resumed tabs on INITIAL_SESSION)
       if (event === "SIGNED_IN" && session?.user) {
@@ -107,10 +130,16 @@ function App() {
         return <FAQ setActiveTab={handleSetActiveTab} />;
       case "dashboard":
         return <Dashboard setActiveTab={handleSetActiveTab} />;
+      case "admin":
+        return <Admin setActiveTab={handleSetActiveTab} isAdmin={isAdmin} />;
       default:
         if (activeTab.startsWith("mentor-profile/")) {
           const id = activeTab.split("mentor-profile/")[1];
           return <MentorProfile id={id} setActiveTab={handleSetActiveTab} />;
+        }
+        if (activeTab.startsWith("speaker-profile/")) {
+          const id = activeTab.split("speaker-profile/")[1];
+          return <SpeakerProfile id={id} setActiveTab={handleSetActiveTab} />;
         }
         if (activeTab.startsWith("chat/")) {
           const id = activeTab.split("chat/")[1];
@@ -142,6 +171,7 @@ function App() {
             setActiveTab={handleSetActiveTab}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
+            isAdmin={isAdmin}
           />
           <div className="flex-1 w-full max-w-7xl mx-auto px-0">
             {renderActivePage()}
@@ -167,6 +197,7 @@ function App() {
         setActiveTab={handleSetActiveTab}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        isAdmin={isAdmin}
       />
 
       {/* Main Page Layout Wrapper */}

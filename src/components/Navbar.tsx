@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sun, Moon, Menu, X, LogOut, User, ChevronDown, LayoutDashboard } from "lucide-react";
+import { Sun, Moon, Menu, X, LogOut, User, ChevronDown, LayoutDashboard, ShieldAlert } from "lucide-react";
 import { supabase } from "../supabase";
 import logoImg from "../assets/logo.png";
 
@@ -8,6 +8,7 @@ interface NavbarProps {
   setActiveTab: (tab: string) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
+  isAdmin?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   darkMode,
   setDarkMode,
+  isAdmin = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -151,6 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "compare", label: "AI Engine" },
     { id: "find-mentor", label: "Mentors" },
     { id: "become-mentor", label: "Become Mentor" },
+    ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
   ];
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Account";
@@ -310,6 +313,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <LayoutDashboard size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                       My Application
                     </button>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setActiveTab("admin");
+                          setProfileOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#A855F7] hover:bg-[#A855F7]/10 transition-colors duration-150 text-left group font-semibold"
+                      >
+                        <ShieldAlert size={15} className="text-[#A855F7] group-hover:scale-110 transition-transform" />
+                        Admin Console
+                      </button>
+                    )}
                   </div>
 
                   <div className="border-t border-outline-variant/15 py-1.5">
