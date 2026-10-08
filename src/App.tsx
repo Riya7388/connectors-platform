@@ -15,6 +15,7 @@ import { FAQ } from "./pages/FAQ";
 import { Admin } from "./pages/Admin";
 import { SpeakerProfile } from "./pages/SpeakerProfile";
 import { Sessions } from "./pages/Sessions";
+import { Polls } from "./pages/Polls";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -133,6 +134,8 @@ function App() {
         return <Dashboard setActiveTab={handleSetActiveTab} />;
       case "sessions":
         return <Sessions setActiveTab={handleSetActiveTab} />;
+      case "polls":
+        return <Polls setActiveTab={handleSetActiveTab} />;
       case "admin":
         return <Admin setActiveTab={handleSetActiveTab} isAdmin={isAdmin} />;
       default:

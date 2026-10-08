@@ -10,6 +10,14 @@ import type {
   SessionDuration,
   SessionRegistration 
 } from "../types/workshop";
+import type {
+  Poll,
+  PollOption,
+  PollVote,
+  TopicSuggestion,
+  PollStatus,
+  SuggestionStatus
+} from "../types/polls";
 import { FileUpload } from "../components/FileUpload";
 import { 
   Plus, 
@@ -36,7 +44,14 @@ import {
   Copy,
   Layers,
   ClipboardList,
-  Download
+  Download,
+  BarChart2,
+  Vote,
+  Lightbulb,
+  Archive,
+  Trophy,
+  Check,
+  MessageSquare
 } from "lucide-react";
 
 interface AdminProps {
@@ -114,8 +129,29 @@ const initialSessionFormData: SessionFormData = {
   status: "upcoming",
 };
 
+// ---------------------------------------------------------------------------
+// Poll Form Data & Initial State
+// ---------------------------------------------------------------------------
+interface PollFormData {
+  question: string;
+  subtitle: string;
+  status: PollStatus;
+  nit_only: boolean;
+  closes_at: string;
+  options: string[];
+}
+
+const initialPollFormData: PollFormData = {
+  question: "",
+  subtitle: "",
+  status: "active",
+  nit_only: false,
+  closes_at: "",
+  options: ["", ""],
+};
+
 export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
-  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations">("sessions");
+  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls">("sessions");
   
   // Speakers State
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -140,6 +176,23 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
   const [registrationsLoading, setRegistrationsLoading] = useState(true);
   const [selectedSessionFilter, setSelectedSessionFilter] = useState<string>("all");
 
+  // Polls & Suggestions State
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [pollsLoading, setPollsLoading] = useState(true);
+  const [pollStatusFilter, setPollStatusFilter] = useState<"all" | PollStatus>("all");
+  const [isPollModalOpen, setIsPollModalOpen] = useState(false);
+  const [editingPollId, setEditingPollId] = useState<string | null>(null);
+  const [pollFormData, setPollFormData] = useState<PollFormData>(initialPollFormData);
+  const [pollOptionsMap, setPollOptionsMap] = useState<Record<string, PollOption[]>>({});
+  const [pollVotesMap, setPollVotesMap] = useState<Record<string, PollVote[]>>({});
+  const [pollAdminSubTab, setPollAdminSubTab] = useState<"polls" | "suggestions">("polls");
+  const [actionPoll, setActionPoll] = useState<{ type: "close" | "archive" | "delete"; poll: Poll } | null>(null);
+
+  // Suggestions State
+  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [suggestionStatusFilter, setSuggestionStatusFilter] = useState<"all" | SuggestionStatus>("all");
+
   // Common UI states
   const [submitting, setSubmitting] = useState(false);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -151,6 +204,8 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
       fetchSpeakers();
       fetchSessions();
       fetchRegistrations();
+      fetchPolls();
+      fetchSuggestions();
     }
   }, [isAdmin]);
 
@@ -227,6 +282,287 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
     } finally {
       setRegistrationsLoading(false);
     }
+  };
+
+  const fetchPolls = async () => {
+    setPollsLoading(true);
+    try {
+      const { data: pollsData, error: pollsErr } = await supabase
+        .from("polls")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (pollsErr) throw pollsErr;
+      setPolls(pollsData || []);
+
+      const pollIds = (pollsData || []).map((p) => p.id);
+      if (pollIds.length > 0) {
+        const { data: optionsData, error: optsErr } = await supabase
+          .from("poll_options")
+          .select("*")
+          .in("poll_id", pollIds)
+          .order("sort_order", { ascending: true });
+
+        if (!optsErr && optionsData) {
+          const optsMap: Record<string, PollOption[]> = {};
+          optionsData.forEach((opt) => {
+            if (!optsMap[opt.poll_id]) optsMap[opt.poll_id] = [];
+            optsMap[opt.poll_id].push(opt);
+          });
+          setPollOptionsMap(optsMap);
+        }
+
+        const { data: votesData, error: votesErr } = await supabase
+          .from("poll_votes")
+          .select("*")
+          .in("poll_id", pollIds);
+
+        if (!votesErr && votesData) {
+          const vMap: Record<string, PollVote[]> = {};
+          votesData.forEach((v) => {
+            if (!vMap[v.poll_id]) vMap[v.poll_id] = [];
+            vMap[v.poll_id].push(v);
+          });
+          setPollVotesMap(vMap);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error fetching polls:", err);
+      setErrorMsg("Failed to load polls.");
+    } finally {
+      setPollsLoading(false);
+    }
+  };
+
+  const fetchSuggestions = async () => {
+    setSuggestionsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("topic_suggestions")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setSuggestions(data || []);
+    } catch (err: any) {
+      console.error("Error fetching suggestions:", err);
+      setErrorMsg("Failed to load topic suggestions.");
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Polls & Suggestions Handlers
+  // ---------------------------------------------------------------------------
+  const handleOpenCreatePoll = () => {
+    setEditingPollId(null);
+    setPollFormData(initialPollFormData);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsPollModalOpen(true);
+  };
+
+  const handleOpenEditPoll = (poll: Poll) => {
+    setEditingPollId(poll.id);
+    const existingOpts = pollOptionsMap[poll.id] || [];
+    setPollFormData({
+      question: poll.question,
+      subtitle: poll.subtitle || "",
+      status: poll.status,
+      nit_only: poll.nit_only,
+      closes_at: poll.closes_at ? new Date(poll.closes_at).toISOString().slice(0, 16) : "",
+      options: existingOpts.length > 0 ? existingOpts.map((o) => o.label) : ["", ""],
+    });
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsPollModalOpen(true);
+  };
+
+  const handleAddPollOption = () => {
+    setPollFormData((prev) => ({
+      ...prev,
+      options: [...prev.options, ""],
+    }));
+  };
+
+  const handleRemovePollOption = (idx: number) => {
+    if (pollFormData.options.length <= 2) return;
+    setPollFormData((prev) => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handlePollOptionChange = (idx: number, value: string) => {
+    setPollFormData((prev) => {
+      const next = [...prev.options];
+      next[idx] = value;
+      return { ...prev, options: next };
+    });
+  };
+
+  const handleSubmitPoll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pollFormData.question.trim()) {
+      setErrorMsg("Poll question is required.");
+      return;
+    }
+    const validOptions = pollFormData.options.map((o) => o.trim()).filter((o) => o.length > 0);
+    if (validOptions.length < 2) {
+      setErrorMsg("Please provide at least 2 non-empty poll options.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      if (editingPollId) {
+        // Update poll details
+        const { error: pollErr } = await supabase
+          .from("polls")
+          .update({
+            question: pollFormData.question.trim(),
+            subtitle: pollFormData.subtitle.trim() || null,
+            status: pollFormData.status,
+            nit_only: pollFormData.nit_only,
+            closes_at: pollFormData.closes_at ? new Date(pollFormData.closes_at).toISOString() : null,
+          })
+          .eq("id", editingPollId);
+
+        if (pollErr) throw pollErr;
+
+        // Delete old options and re-insert
+        await supabase.from("poll_options").delete().eq("poll_id", editingPollId);
+
+        const optionsToInsert = validOptions.map((label, idx) => ({
+          poll_id: editingPollId,
+          label,
+          sort_order: idx,
+        }));
+
+        const { error: optErr } = await supabase.from("poll_options").insert(optionsToInsert);
+        if (optErr) throw optErr;
+
+        setSuccessMsg("Poll updated successfully!");
+      } else {
+        // Create new poll
+        const { data: newPoll, error: pollErr } = await supabase
+          .from("polls")
+          .insert({
+            question: pollFormData.question.trim(),
+            subtitle: pollFormData.subtitle.trim() || null,
+            status: pollFormData.status,
+            nit_only: pollFormData.nit_only,
+            closes_at: pollFormData.closes_at ? new Date(pollFormData.closes_at).toISOString() : null,
+          })
+          .select()
+          .single();
+
+        if (pollErr) throw pollErr;
+
+        const optionsToInsert = validOptions.map((label, idx) => ({
+          poll_id: newPoll.id,
+          label,
+          sort_order: idx,
+        }));
+
+        const { error: optErr } = await supabase.from("poll_options").insert(optionsToInsert);
+        if (optErr) throw optErr;
+
+        setSuccessMsg("Poll created successfully!");
+      }
+
+      setIsPollModalOpen(false);
+      fetchPolls();
+    } catch (err: any) {
+      console.error("Error saving poll:", err);
+      setErrorMsg(err.message || "Failed to save poll.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExecutePollAction = async () => {
+    if (!actionPoll) return;
+    setDeletingLoading(true);
+    setErrorMsg(null);
+    try {
+      if (actionPoll.type === "close") {
+        const { error } = await supabase.from("polls").update({ status: "closed" }).eq("id", actionPoll.poll.id);
+        if (error) throw error;
+        setSuccessMsg("Poll closed successfully.");
+      } else if (actionPoll.type === "archive") {
+        const { error } = await supabase.from("polls").update({ status: "archived" }).eq("id", actionPoll.poll.id);
+        if (error) throw error;
+        setSuccessMsg("Poll archived successfully.");
+      } else if (actionPoll.type === "delete") {
+        const { error } = await supabase.from("polls").delete().eq("id", actionPoll.poll.id);
+        if (error) throw error;
+        setSuccessMsg("Poll deleted.");
+      }
+      setActionPoll(null);
+      fetchPolls();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Action failed.");
+    } finally {
+      setDeletingLoading(false);
+    }
+  };
+
+  const handleExportPollCSV = (poll: Poll) => {
+    const options = pollOptionsMap[poll.id] || [];
+    const votes = pollVotesMap[poll.id] || [];
+    const total = votes.length;
+
+    const headers = ["Option", "Votes Count", "Percentage"];
+    const rows = options.map((opt) => {
+      const count = votes.filter((v) => v.option_id === opt.id).length;
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+      return [`"${opt.label.replace(/"/g, '""')}"`, count, `${pct}%`];
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `poll_${poll.id.slice(0, 8)}_results.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleUpdateSuggestionStatus = async (id: string, status: SuggestionStatus) => {
+    try {
+      const { error } = await supabase.from("topic_suggestions").update({ status }).eq("id", id);
+      if (error) throw error;
+      setSuggestions((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to update suggestion status.");
+    }
+  };
+
+  const handleExportSuggestionsCSV = () => {
+    const headers = ["Title", "Category", "Why Helpful", "Submitter Email", "Status", "Created At"];
+    const rows = suggestions.map((s) => [
+      `"${(s.title || "").replace(/"/g, '""')}"`,
+      `"${(s.category || "").replace(/"/g, '""')}"`,
+      `"${(s.why_helpful || "").replace(/"/g, '""')}"`,
+      `"${(s.email || "").replace(/"/g, '""')}"`,
+      s.status,
+      s.created_at,
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `topic_suggestions_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // ---------------------------------------------------------------------------
@@ -650,6 +986,16 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               >
                 <ClipboardList size={14} /> Registrations ({registrations.length})
               </button>
+              <button
+                onClick={() => setAdminSection("polls")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "polls"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <BarChart2 size={14} /> Polls & Ideas ({polls.length})
+              </button>
             </div>
 
             {adminSection === "sessions" ? (
@@ -674,6 +1020,30 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 <Plus size={18} />
                 Add Speaker
               </button>
+            ) : adminSection === "polls" ? (
+              <div className="flex items-center gap-2">
+                {pollAdminSubTab === "suggestions" ? (
+                  <button
+                    onClick={handleExportSuggestionsCSV}
+                    disabled={suggestions.length === 0}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] hover:bg-[#25252b] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Download size={16} />
+                    Export CSV
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleOpenCreatePoll}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                    style={{
+                      background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                    }}
+                  >
+                    <Plus size={18} />
+                    Create Poll
+                  </button>
+                )}
+              </div>
             ) : (
               <button
                 onClick={handleExportCSV}
@@ -1209,6 +1579,366 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* POLLS & TOPIC SUGGESTIONS SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "polls" && (
+          <div className="space-y-6">
+            {/* Sub-tab switcher: Polls vs Suggestions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#141417] p-4 rounded-2xl border border-[rgba(255,255,255,0.08)]">
+              <div className="flex bg-[#1C1C21] p-1 rounded-xl border border-[rgba(255,255,255,0.08)]">
+                <button
+                  onClick={() => setPollAdminSubTab("polls")}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                    pollAdminSubTab === "polls"
+                      ? "bg-[#141417] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                      : "text-[#A1A1AA] hover:text-white"
+                  }`}
+                >
+                  <Vote size={14} /> Polls Console ({polls.length})
+                </button>
+                <button
+                  onClick={() => setPollAdminSubTab("suggestions")}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                    pollAdminSubTab === "suggestions"
+                      ? "bg-[#141417] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                      : "text-[#A1A1AA] hover:text-white"
+                  }`}
+                >
+                  <Lightbulb size={14} /> Topic Suggestions ({suggestions.length})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    fetchPolls();
+                    fetchSuggestions();
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-[#A1A1AA] hover:text-white transition-all flex items-center gap-1.5"
+                >
+                  <Loader2 size={13} className={pollsLoading || suggestionsLoading ? "animate-spin" : ""} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* ---- SUB-TAB 1: POLLS ---- */}
+            {pollAdminSubTab === "polls" && (
+              <div className="space-y-6">
+                {/* Status Filter */}
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {(["all", "active", "draft", "closed", "archived"] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setPollStatusFilter(st)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors ${
+                          pollStatusFilter === st
+                            ? "bg-[rgba(168,85,247,0.15)] text-[#A855F7] border border-[rgba(168,85,247,0.3)]"
+                            : "bg-[#141417] text-[#A1A1AA] border border-[rgba(255,255,255,0.08)] hover:text-white"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="text-xs text-[#71717A]">
+                    Showing {polls.filter((p) => pollStatusFilter === "all" || p.status === pollStatusFilter).length} polls
+                  </span>
+                </div>
+
+                {pollsLoading ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#A855F7]" />
+                    <p className="text-sm text-[#A1A1AA]">Loading polls...</p>
+                  </div>
+                ) : polls.filter((p) => pollStatusFilter === "all" || p.status === pollStatusFilter).length === 0 ? (
+                  <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-12 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-[#A855F7] mx-auto mb-4">
+                      <Vote size={30} />
+                    </div>
+                    <h3 className="text-lg font-bold text-white mb-1">No polls found</h3>
+                    <p className="text-sm text-[#A1A1AA] max-w-sm mx-auto mb-6">
+                      Create a community poll to gather topic preferences and feedback.
+                    </p>
+                    <button
+                      onClick={handleOpenCreatePoll}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg"
+                      style={{
+                        background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                      }}
+                    >
+                      <Plus size={16} /> Create Poll
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {polls
+                      .filter((p) => pollStatusFilter === "all" || p.status === pollStatusFilter)
+                      .map((poll) => {
+                        const options = pollOptionsMap[poll.id] || [];
+                        const votes = pollVotesMap[poll.id] || [];
+                        const totalVotes = votes.length;
+
+                        return (
+                          <div
+                            key={poll.id}
+                            className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-6 space-y-5 flex flex-col justify-between"
+                          >
+                            <div className="space-y-3">
+                              {/* Badges */}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                                      poll.status === "active"
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                        : poll.status === "closed"
+                                        ? "bg-purple-500/10 text-purple-300 border border-purple-500/30"
+                                        : poll.status === "archived"
+                                        ? "bg-zinc-500/10 text-zinc-400 border border-zinc-500/30"
+                                        : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                    }`}
+                                  >
+                                    {poll.status}
+                                  </span>
+
+                                  {poll.nit_only && (
+                                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[rgba(168,85,247,0.1)] text-[#A855F7] border border-[rgba(168,85,247,0.25)] flex items-center gap-1">
+                                      <GraduationCap size={12} /> NIT Only
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span className="text-xs text-[#71717A]">
+                                  {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
+                                </span>
+                              </div>
+
+                              <div>
+                                <h4 className="text-base font-bold text-white line-clamp-2">
+                                  {poll.question}
+                                </h4>
+                                {poll.subtitle && (
+                                  <p className="text-xs text-[#A1A1AA] mt-0.5 line-clamp-1">
+                                    {poll.subtitle}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Options Breakdown */}
+                              <div className="space-y-2 pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                                {options.map((opt) => {
+                                  const optVotes = votes.filter((v) => v.option_id === opt.id).length;
+                                  const pct = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
+
+                                  return (
+                                    <div key={opt.id} className="space-y-1">
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="text-[#A1A1AA] truncate pr-2">{opt.label}</span>
+                                        <span className="text-white font-medium shrink-0">
+                                          {pct}% ({optVotes})
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 w-full bg-[#1C1C21] rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full rounded-full"
+                                          style={{
+                                            width: `${pct}%`,
+                                            background: "linear-gradient(90deg, #A855F7 0%, #FF2D8F 100%)"
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Actions footer */}
+                            <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPoll(poll)}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1C21] text-white hover:bg-[#25252b] border border-[rgba(255,255,255,0.1)] transition-colors flex items-center gap-1.5"
+                                >
+                                  <Edit3 size={13} /> Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportPollCSV(poll)}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1C21] text-[#A1A1AA] hover:text-white border border-[rgba(255,255,255,0.08)] transition-colors flex items-center gap-1.5"
+                                >
+                                  <Download size={13} /> CSV
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {poll.status === "active" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActionPoll({ type: "close", poll })}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 transition-colors"
+                                  >
+                                    Close Early
+                                  </button>
+                                )}
+
+                                {poll.status !== "archived" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActionPoll({ type: "archive", poll })}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20 border border-zinc-500/20 transition-colors"
+                                  >
+                                    Archive
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setActionPoll({ type: "delete", poll })}
+                                  className="p-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
+                                  title="Delete Poll"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---- SUB-TAB 2: TOPIC SUGGESTIONS ---- */}
+            {pollAdminSubTab === "suggestions" && (
+              <div className="space-y-6">
+                {/* Filters */}
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {(["all", "new", "reviewed", "selected", "archived"] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setSuggestionStatusFilter(st)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors ${
+                          suggestionStatusFilter === st
+                            ? "bg-[rgba(168,85,247,0.15)] text-[#A855F7] border border-[rgba(168,85,247,0.3)]"
+                            : "bg-[#141417] text-[#A1A1AA] border border-[rgba(255,255,255,0.08)] hover:text-white"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="text-xs text-[#71717A]">
+                    Showing {suggestions.filter((s) => suggestionStatusFilter === "all" || s.status === suggestionStatusFilter).length} suggestions
+                  </span>
+                </div>
+
+                {suggestionsLoading ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#A855F7]" />
+                    <p className="text-sm text-[#A1A1AA]">Loading suggestions...</p>
+                  </div>
+                ) : suggestions.filter((s) => suggestionStatusFilter === "all" || s.status === suggestionStatusFilter).length === 0 ? (
+                  <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-12 text-center">
+                    <Lightbulb size={32} className="text-[#A1A1AA] mx-auto mb-3" />
+                    <h3 className="text-lg font-bold text-white">No suggestions found</h3>
+                    <p className="text-sm text-[#A1A1AA] max-w-sm mx-auto mt-1">
+                      {suggestionStatusFilter === "all"
+                        ? "Submitted student topic suggestions will show up here."
+                        : `No suggestions with status "${suggestionStatusFilter}".`}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {suggestions
+                      .filter((s) => suggestionStatusFilter === "all" || s.status === suggestionStatusFilter)
+                      .map((sug) => (
+                        <div
+                          key={sug.id}
+                          className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 space-y-4 flex flex-col justify-between"
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                                  sug.status === "new"
+                                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                    : sug.status === "selected"
+                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                    : sug.status === "reviewed"
+                                    ? "bg-purple-500/10 text-purple-300 border border-purple-500/30"
+                                    : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/30"
+                                }`}
+                              >
+                                {sug.status}
+                              </span>
+
+                              {sug.category && (
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#1C1C21] text-[#A855F7] border border-[rgba(255,255,255,0.08)]">
+                                  {sug.category}
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="font-bold text-base text-white">{sug.title}</h4>
+
+                            {sug.why_helpful && (
+                              <p className="text-xs text-[#A1A1AA] bg-[#1C1C21] p-3 rounded-xl border border-[rgba(255,255,255,0.06)] leading-relaxed">
+                                {sug.why_helpful}
+                              </p>
+                            )}
+
+                            <div className="text-[11px] text-[#71717A] flex items-center justify-between pt-1">
+                              <span>By {sug.email || "Anonymous"}</span>
+                              <span>{new Date(sug.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
+                            </div>
+                          </div>
+
+                          {/* Quick status change buttons */}
+                          <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] flex items-center gap-2">
+                            {sug.status !== "reviewed" && (
+                              <button
+                                onClick={() => handleUpdateSuggestionStatus(sug.id, "reviewed")}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1C21] text-[#A1A1AA] hover:text-white border border-[rgba(255,255,255,0.08)] transition-colors"
+                              >
+                                Review
+                              </button>
+                            )}
+                            {sug.status !== "selected" && (
+                              <button
+                                onClick={() => handleUpdateSuggestionStatus(sug.id, "selected")}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
+                              >
+                                Select
+                              </button>
+                            )}
+                            {sug.status !== "archived" && (
+                              <button
+                                onClick={() => handleUpdateSuggestionStatus(sug.id, "archived")}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20 border border-zinc-500/20 transition-colors"
+                              >
+                                Archive
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1973,6 +2703,243 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 >
                   {deletingLoading && <Loader2 size={16} className="animate-spin" />}
                   Confirm Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* CREATE / EDIT POLL MODAL */}
+        {/* ========================================================================= */}
+        {isPollModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-fade-in">
+            <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl my-auto">
+              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {editingPollId ? "Edit Poll" : "Create New Poll"}
+                  </h3>
+                  <p className="text-xs text-[#A1A1AA] mt-0.5">
+                    Ask the community to vote on topics and options.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsPollModalOpen(false)}
+                  className="p-2 rounded-xl text-[#A1A1AA] hover:text-white hover:bg-[#1C1C21] transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitPoll} className="space-y-5">
+                {/* Question */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-[#A1A1AA]">
+                    Poll Question <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={pollFormData.question}
+                    onChange={(e) => setPollFormData({ ...pollFormData, question: e.target.value })}
+                    placeholder="e.g. Which System Design topic should we host this Saturday?"
+                    className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-[#71717A] outline-none"
+                  />
+                </div>
+
+                {/* Subtitle */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-[#A1A1AA]">
+                    Subtitle / Context (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={pollFormData.subtitle}
+                    onChange={(e) => setPollFormData({ ...pollFormData, subtitle: e.target.value })}
+                    placeholder="e.g. Led by Senior Distributed Systems Engineer at Uber"
+                    className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-[#71717A] outline-none"
+                  />
+                </div>
+
+                {/* Options list */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">
+                      Poll Options <span className="text-red-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAddPollOption}
+                      className="text-xs font-bold text-[#A855F7] hover:text-[#c084fc] flex items-center gap-1"
+                    >
+                      <Plus size={13} /> Add Option
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {pollFormData.options.map((opt, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs text-[#71717A] w-5 text-center">{idx + 1}.</span>
+                        <input
+                          type="text"
+                          required
+                          value={opt}
+                          onChange={(e) => handlePollOptionChange(idx, e.target.value)}
+                          placeholder={`Option ${idx + 1}`}
+                          className="flex-1 bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-3.5 py-2 text-sm text-white placeholder:text-[#71717A] outline-none"
+                        />
+                        {pollFormData.options.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePollOption(idx)}
+                            className="p-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Remove Option"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Settings Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">Status</label>
+                    <select
+                      value={pollFormData.status}
+                      onChange={(e) => setPollFormData({ ...pollFormData, status: e.target.value as PollStatus })}
+                      className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-3 py-2.5 text-sm text-white outline-none"
+                    >
+                      <option value="active">Active (Voting Open)</option>
+                      <option value="draft">Draft (Admin Only)</option>
+                      <option value="closed">Closed (Results Finalized)</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </div>
+
+                  {/* Closes At */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">Closes At (Optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={pollFormData.closes_at}
+                      onChange={(e) => setPollFormData({ ...pollFormData, closes_at: e.target.value })}
+                      className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-3 py-2.5 text-sm text-white outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* NIT Raipur Only Toggle */}
+                <label className="flex items-center gap-3 p-3.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pollFormData.nit_only}
+                    onChange={(e) => setPollFormData({ ...pollFormData, nit_only: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-600 text-[#A855F7] focus:ring-[#A855F7]"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <GraduationCap size={14} className="text-[#A855F7]" />
+                      NIT Raipur Students Only
+                    </p>
+                    <p className="text-[11px] text-[#71717A]">
+                      Restricts voting to @nitrr.ac.in accounts (others can still view results).
+                    </p>
+                  </div>
+                </label>
+
+                {/* Form Actions */}
+                <div className="flex items-center gap-3 pt-3 border-t border-[rgba(255,255,255,0.08)]">
+                  <button
+                    type="button"
+                    onClick={() => setIsPollModalOpen(false)}
+                    className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] text-white hover:bg-[#25252b] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                    style={{
+                      background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                    }}
+                  >
+                    {submitting && <Loader2 size={16} className="animate-spin" />}
+                    {editingPollId ? "Update Poll" : "Create Poll"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* POLL ACTION CONFIRM MODAL (Close / Archive / Delete) */}
+        {/* ========================================================================= */}
+        {actionPoll && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+            <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto ${
+                actionPoll.type === "delete"
+                  ? "bg-red-500/10 border border-red-500/20 text-red-400"
+                  : actionPoll.type === "close"
+                  ? "bg-purple-500/10 border border-purple-500/20 text-purple-400"
+                  : "bg-zinc-500/10 border border-zinc-500/20 text-zinc-400"
+              }`}>
+                {actionPoll.type === "delete" ? (
+                  <Trash2 size={24} />
+                ) : actionPoll.type === "close" ? (
+                  <Clock size={24} />
+                ) : (
+                  <Archive size={24} />
+                )}
+              </div>
+
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-bold text-white capitalize">
+                  {actionPoll.type === "close" ? "Close Poll Early" : `${actionPoll.type} Poll`}
+                </h3>
+                <p className="text-sm text-[#A1A1AA]">
+                  Are you sure you want to {actionPoll.type} <span className="text-white font-semibold">"{actionPoll.poll.question}"</span>?
+                  {actionPoll.type === "delete" && " This will permanently delete the poll, options, and all recorded votes."}
+                  {actionPoll.type === "close" && " Voting will immediately cease and the current results will become final."}
+                  {actionPoll.type === "archive" && " The poll will be moved to archived status."}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={deletingLoading}
+                  onClick={() => setActionPoll(null)}
+                  className="flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] text-white hover:bg-[#25252b] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingLoading}
+                  onClick={handleExecutePollAction}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-2 ${
+                    actionPoll.type === "delete"
+                      ? "bg-red-600 hover:bg-red-500"
+                      : "bg-[#A855F7] hover:bg-[#9333ea]"
+                  }`}
+                >
+                  {deletingLoading && <Loader2 size={16} className="animate-spin" />}
+                  Confirm
                 </button>
               </div>
             </div>

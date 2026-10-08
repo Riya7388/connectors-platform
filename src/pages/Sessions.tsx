@@ -2,6 +2,21 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import type { WorkshopSession, SessionRegistration } from "../types/workshop";
 import { isNitEmail } from "../lib/nitEmail";
+
+// ---------------------------------------------------------------------------
+// Razorpay global type (loaded via <script> in index.html)
+// ---------------------------------------------------------------------------
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => {
+      open(): void;
+      on(event: string, handler: (...args: unknown[]) => void): void;
+    };
+  }
+}
+
+const FREE_MODE = import.meta.env.VITE_FREE_MODE === "true";
+const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID as string;
 import { 
   Calendar, 
   Clock, 
@@ -50,6 +65,9 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
   const [cancellingSession, setCancellingSession] = useState<WorkshopSession | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+
+  // Payment state (Razorpay)
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   // Toast / Status notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -181,11 +199,13 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
     setFormError(null);
 
     const isNit = isNitEmail(currentUser.email);
-    const isFree = selectedSession.access_type === "free_for_all" || isNit;
+    // FREE_MODE makes everyone free regardless of email (useful for testing)
+    const isFree = FREE_MODE || selectedSession.access_type === "free_for_all" || isNit;
 
     if (!isFree) {
-      setFormError("Paid registrations are opening soon.");
+      // Non-NIT user on a paid session — hand off to paid flow
       setSubmitting(false);
+      await handlePaidRegister();
       return;
     }
 
@@ -241,6 +261,203 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
       setFormError(err.message || "An unexpected error occurred.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Paid Registration (Razorpay) — non-NIT users on nit_free_others_paid sessions
+  // ---------------------------------------------------------------------------
+  const handlePaidRegister = async () => {
+    if (!selectedSession || !currentUser) return;
+
+    setPaymentProcessing(true);
+    setFormError(null);
+
+    let pendingRegId: string | null = null;
+
+    try {
+      // Step 1: Validate form fields before inserting
+      const cleanedPhone = regPhone.replace(/\D/g, "");
+      if (!regName.trim()) {
+        setFormError("Please enter your full name.");
+        setPaymentProcessing(false);
+        return;
+      }
+      if (cleanedPhone.length < 10) {
+        setFormError("Please enter a valid 10-digit phone number.");
+        setPaymentProcessing(false);
+        return;
+      }
+      if (!regYear.trim()) {
+        setFormError("Please select your class or year of study.");
+        setPaymentProcessing(false);
+        return;
+      }
+
+      // Step 2: Insert a 'pending' registration row to hold the seat
+      const { data: pendingReg, error: insertError } = await supabase
+        .from("session_registrations")
+        .insert({
+          session_id: selectedSession.id,
+          user_id: currentUser.id,
+          full_name: regName.trim(),
+          email: currentUser.email,
+          phone: regPhone.trim(),
+          year_or_class: regYear.trim(),
+          question_for_speaker: regQuestion.trim() || null,
+          is_nit_verified: false,
+          payment_status: "pending",
+          amount_paid: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        if (
+          insertError.code === "23505" ||
+          insertError.message?.toLowerCase().includes("unique") ||
+          insertError.message?.toLowerCase().includes("duplicate")
+        ) {
+          setFormError("You already have a registration (pending or active) for this session.");
+        } else {
+          setFormError(insertError.message || "Failed to start registration.");
+        }
+        setPaymentProcessing(false);
+        return;
+      }
+
+      pendingRegId = (pendingReg as SessionRegistration).id;
+
+      // Step 3: Call create-razorpay-order edge function
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const accessToken = authSession?.access_token;
+
+      const orderRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            kind: "workshop_session",
+            session_id: selectedSession.id,
+            registration_id: pendingRegId,
+          }),
+        }
+      );
+
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok || !orderData.order_id) {
+        throw new Error(orderData.error || "Failed to create payment order.");
+      }
+
+      // Step 4: Open Razorpay checkout (single instance with handler + modal.ondismiss)
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new window.Razorpay({
+          key: RAZORPAY_KEY_ID || orderData.key_id,
+          amount: orderData.amount,
+          currency: orderData.currency || "INR",
+          order_id: orderData.order_id,
+          name: "Connectors",
+          description: selectedSession.title,
+          prefill: {
+            name: regName.trim(),
+            email: currentUser.email,
+            contact: regPhone.trim(),
+          },
+          theme: { color: "#A855F7" },
+          modal: {
+            ondismiss: async () => {
+              // User closed modal without paying — delete the pending row to free the seat
+              if (pendingRegId) {
+                await supabase
+                  .from("session_registrations")
+                  .delete()
+                  .eq("id", pendingRegId)
+                  .eq("payment_status", "pending");
+              }
+              resolve(); // stop spinner without showing an error
+            },
+          },
+          handler: async (response: Record<string, string>) => {
+            try {
+              // Step 5: Verify payment server-side via edge function
+              const verifyRes = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-razorpay-payment`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}`,
+                    "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+                  },
+                  body: JSON.stringify({
+                    kind: "workshop_session",
+                    registration_id: pendingRegId,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                }
+              );
+
+              const verifyData = await verifyRes.json();
+
+              if (!verifyRes.ok || !verifyData.success) {
+                reject(new Error(verifyData.error || "Payment verification failed."));
+                return;
+              }
+
+              // Step 6: Update local state — mark registration as paid
+              const paidReg: SessionRegistration = {
+                ...(pendingReg as SessionRegistration),
+                payment_status: "paid",
+                razorpay_payment_id: response.razorpay_payment_id,
+                amount_paid: selectedSession.price_amount || 0,
+              };
+
+              setUserRegistrations((prev) => ({
+                ...prev,
+                [selectedSession.id]: paidReg,
+              }));
+              setRegistrationCounts((prev) => ({
+                ...prev,
+                [selectedSession.id]: (prev[selectedSession.id] || 0) + 1,
+              }));
+
+              setToastMessage(`Payment successful! You're registered for "${selectedSession.title}".`);
+              setTimeout(() => setToastMessage(null), 6000);
+              handleCloseRegisterModal();
+              resolve();
+            } catch (verifyErr: any) {
+              reject(verifyErr);
+            }
+          },
+        });
+
+        rzp.on("payment.failed", (resp: any) => {
+          reject(new Error((resp as any)?.error?.description || "Payment failed. Please try again."));
+        });
+
+        rzp.open();
+      });
+    } catch (err: any) {
+      console.error("Paid registration error:", err);
+      // Try to delete the pending row if something went wrong
+      if (pendingRegId) {
+        await supabase
+          .from("session_registrations")
+          .delete()
+          .eq("id", pendingRegId)
+          .eq("payment_status", "pending");
+      }
+      setFormError(err.message || "Payment could not be completed. Please try again.");
+    } finally {
+      setPaymentProcessing(false);
     }
   };
 
@@ -832,16 +1049,27 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                     )}
                   </button>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <button
                       type="button"
-                      disabled
-                      className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white/50 bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] cursor-not-allowed flex items-center justify-center gap-2"
+                      disabled={paymentProcessing || submitting}
+                      onClick={handlePaidRegister}
+                      className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                      style={{
+                        background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                      }}
                     >
-                      <span>Pay ₹{Math.round((selectedSession.price_amount || 0) / 100)} & Register</span>
+                      {paymentProcessing ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Opening Payment...</span>
+                        </>
+                      ) : (
+                        <span>Pay ₹{Math.round((selectedSession.price_amount || 0) / 100)} &amp; Register</span>
+                      )}
                     </button>
-                    <p className="text-center text-xs text-[#71717A]">
-                      Paid registration opening soon
+                    <p className="text-center text-[11px] text-[#71717A]">
+                      Secure payment via Razorpay · UPI, Cards, Net Banking accepted
                     </p>
                   </div>
                 )}

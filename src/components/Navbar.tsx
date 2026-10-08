@@ -151,6 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navLinks = [
     { id: "home", label: "Home" },
     { id: "sessions", label: "Sessions" },
+    { id: "polls", label: "Polls" },
     { id: "compare", label: "AI Engine" },
     { id: "find-mentor", label: "Mentors" },
     { id: "become-mentor", label: "Become Mentor" },

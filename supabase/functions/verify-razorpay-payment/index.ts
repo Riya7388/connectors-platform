@@ -46,25 +46,88 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    const body = await req.json()
     const { 
+      kind = 'booking',
       bookingRequestId, 
+      registration_id,
       razorpay_order_id, 
       razorpay_payment_id, 
       razorpay_signature 
-    } = await req.json()
+    } = body
 
-    if (!bookingRequestId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      throw new Error('Missing required fields for payment verification')
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      throw new Error('Missing required Razorpay parameters for payment verification')
     }
 
-    // Verify signature
+    // Verify HMAC SHA256 signature
     const generatedSignature = await generateHmac(`${razorpay_order_id}|${razorpay_payment_id}`, RAZORPAY_KEY_SECRET)
 
     if (generatedSignature !== razorpay_signature) {
+      if (kind === 'workshop_session' && registration_id) {
+        await supabaseAdmin
+          .from('session_registrations')
+          .update({ payment_status: 'failed' })
+          .eq('id', registration_id)
+      }
       throw new Error('Payment signature verification failed')
     }
 
-    // Verification successful, update booking status
+    // =========================================================================
+    // WORKSHOP SESSION PAYMENT VERIFICATION
+    // =========================================================================
+    if (kind === 'workshop_session') {
+      if (!registration_id) {
+        throw new Error('Missing registration_id for workshop session verification')
+      }
+
+      // Fetch registration with session to obtain verified price_amount
+      const { data: reg, error: regError } = await supabaseAdmin
+        .from('session_registrations')
+        .select(`
+          id,
+          session_id,
+          session:workshop_sessions(
+            price_amount
+          )
+        `)
+        .eq('id', registration_id)
+        .single()
+
+      if (regError || !reg) {
+        throw new Error('Registration record not found')
+      }
+
+      const verifiedAmount = (reg.session as any)?.price_amount || 0
+
+      // Update registration record to paid using service role key (bypasses RLS)
+      const { error: updateError } = await supabaseAdmin
+        .from('session_registrations')
+        .update({
+          payment_status: 'paid',
+          razorpay_payment_id: razorpay_payment_id,
+          amount_paid: verifiedAmount
+        })
+        .eq('id', registration_id)
+
+      if (updateError) {
+        console.error('Supabase Workshop Update Error:', updateError)
+        throw new Error('Failed to update workshop registration status after payment')
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Workshop registration verified and marked as paid' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    }
+
+    // =========================================================================
+    // LEGACY 1-ON-1 BOOKING PAYMENT VERIFICATION
+    // =========================================================================
+    if (!bookingRequestId) {
+      throw new Error('Missing bookingRequestId for payment verification')
+    }
+
     const { error: updateError } = await supabaseAdmin
       .from('booking_requests')
       .update({ 
@@ -72,11 +135,10 @@ serve(async (req) => {
         razorpay_payment_id: razorpay_payment_id 
       })
       .eq('id', bookingRequestId)
-      // Extra safety check: ensure we're updating the matching order
       .eq('razorpay_order_id', razorpay_order_id);
 
     if (updateError) {
-      console.error("Supabase Update Error:", updateError);
+      console.error("Supabase Booking Update Error:", updateError);
       throw new Error('Failed to update booking status after payment');
     }
 
