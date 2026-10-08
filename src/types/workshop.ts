@@ -26,7 +26,7 @@ export interface Speaker {
   updated_at?: string;
 }
 
-export type SessionAccessType = 'free_for_all' | 'nit_free_others_paid';
+export type SessionAccessType = 'free_for_all' | 'nit_free_others_paid' | 'paid_for_all';
 export type SessionStatus = 'upcoming' | 'live' | 'completed' | 'cancelled';
 export type SessionDuration = 60 | 90;
 

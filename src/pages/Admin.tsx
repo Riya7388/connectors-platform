@@ -775,10 +775,10 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
 
     // Convert price to paise (rupees * 100)
     let priceAmountPaise = 0;
-    if (sessionFormData.access_type === "nit_free_others_paid") {
+    if (sessionFormData.access_type === "nit_free_others_paid" || sessionFormData.access_type === "paid_for_all") {
       const parsedInr = parseFloat(sessionFormData.price_inr);
       if (isNaN(parsedInr) || parsedInr < 0) {
-        setErrorMsg("Please enter a valid price for non-NIT participants.");
+        setErrorMsg("Please enter a valid price.");
         return;
       }
       priceAmountPaise = Math.round(parsedInr * 100);
@@ -1145,12 +1145,18 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                         <div className="flex items-center justify-between gap-2">
                           <span
                             className={`text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full border ${
-                              isFree
+                              session.access_type === "free_for_all"
                                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                : session.access_type === "paid_for_all"
+                                ? "bg-amber-500/10 text-[#FF9D2E] border-amber-500/30"
                                 : "bg-[rgba(168,85,247,0.1)] text-[#A855F7] border-[rgba(168,85,247,0.25)]"
                             }`}
                           >
-                            {isFree ? "Free for All" : `NIT Free • ₹${priceInr}`}
+                            {session.access_type === "free_for_all"
+                              ? "Free for All"
+                              : session.access_type === "paid_for_all"
+                              ? `Paid for All • ₹${priceInr}`
+                              : `NIT Free • ₹${priceInr}`}
                           </span>
 
                           <span
@@ -2077,7 +2083,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                   <label className="text-xs font-bold uppercase tracking-[0.08em] text-[#A855F7]">
                     Access & Pricing Type
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label
                       onClick={() => setSessionFormData({ ...sessionFormData, access_type: "free_for_all" })}
                       className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-colors ${
@@ -2093,7 +2099,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                         onChange={() => {}}
                         className="sr-only"
                       />
-                      <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.3)] flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.3)] flex items-center justify-center shrink-0">
                         {sessionFormData.access_type === "free_for_all" && (
                           <div className="w-2 h-2 rounded-full bg-[#A855F7]" />
                         )}
@@ -2119,24 +2125,50 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                         onChange={() => {}}
                         className="sr-only"
                       />
-                      <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.3)] flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.3)] flex items-center justify-center shrink-0">
                         {sessionFormData.access_type === "nit_free_others_paid" && (
                           <div className="w-2 h-2 rounded-full bg-[#A855F7]" />
                         )}
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-white">Free for NIT Raipur</p>
+                        <p className="text-xs font-bold text-white">Free for NIT Raipur, paid for others</p>
                         <p className="text-[11px] text-[#71717A]">NIT free • paid for outside attendees</p>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() => setSessionFormData({ ...sessionFormData, access_type: "paid_for_all" })}
+                      className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-colors ${
+                        sessionFormData.access_type === "paid_for_all"
+                          ? "bg-[rgba(168,85,247,0.1)] border-[#A855F7] text-white"
+                          : "bg-[#141417] border-[rgba(255,255,255,0.08)] text-[#A1A1AA]"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="access_type"
+                        checked={sessionFormData.access_type === "paid_for_all"}
+                        onChange={() => {}}
+                        className="sr-only"
+                      />
+                      <div className="w-4 h-4 rounded-full border border-[rgba(255,255,255,0.3)] flex items-center justify-center shrink-0">
+                        {sessionFormData.access_type === "paid_for_all" && (
+                          <div className="w-2 h-2 rounded-full bg-[#A855F7]" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">Paid for everyone (including NIT Raipur)</p>
+                        <p className="text-[11px] text-[#71717A]">All attendees pay • NIT students included</p>
                       </div>
                     </label>
                   </div>
 
-                  {/* Price input (shown only if nit_free_others_paid) */}
-                  {sessionFormData.access_type === "nit_free_others_paid" && (
+                  {/* Price input (shown if nit_free_others_paid or paid_for_all) */}
+                  {(sessionFormData.access_type === "nit_free_others_paid" || sessionFormData.access_type === "paid_for_all") && (
                     <div className="pt-2 space-y-1.5 animate-fade-in">
                       <label className="text-xs font-semibold text-[#A1A1AA] flex items-center gap-1">
                         <IndianRupee size={13} className="text-[#FF9D2E]" />
-                        Price for Non-NIT Attendees (INR ₹)
+                        {sessionFormData.access_type === "paid_for_all" ? "Price (INR ₹)" : "Price for Non-NIT Attendees (INR ₹)"}
                       </label>
                       <input
                         type="number"

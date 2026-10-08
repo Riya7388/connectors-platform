@@ -305,7 +305,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           phone: regPhone.trim(),
           year_or_class: regYear.trim(),
           question_for_speaker: regQuestion.trim() || null,
-          is_nit_verified: false,
+          is_nit_verified: isNitUser,
           payment_status: "pending",
           amount_paid: 0,
         })
@@ -536,6 +536,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
   const renderSessionCard = (session: WorkshopSession, isDimmed = false) => {
     const isFreeForAll = session.access_type === "free_for_all";
+    const isPaidForAll = session.access_type === "paid_for_all";
     const priceInRupees = Math.round((session.price_amount || 0) / 100);
     const isRegistered = !!userRegistrations[session.id];
     const sessionIsPast = isPast(session);
@@ -582,16 +583,25 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                 <span className="px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-emerald-500/90 text-white backdrop-blur-md shadow-md">
                   FREE
                 </span>
-              ) : (
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-[rgba(168,85,247,0.9)] text-white backdrop-blur-md shadow-md">
-                  FREE for NIT Raipur
-                </span>
-              )}
-
-              {!isFreeForAll && priceInRupees > 0 && (
+              ) : isPaidForAll ? (
                 <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#141417]/90 text-[#FF9D2E] border border-[#FF9D2E]/30 backdrop-blur-md shadow-md">
-                  ₹{priceInRupees} for others
+                  ₹{priceInRupees} · Paid session
                 </span>
+              ) : currentUser && isNitUser ? (
+                <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-emerald-500/90 text-white backdrop-blur-md shadow-md">
+                  FREE for you — NIT Raipur verified
+                </span>
+              ) : (
+                <>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-[rgba(168,85,247,0.9)] text-white backdrop-blur-md shadow-md">
+                    FREE for NIT Raipur
+                  </span>
+                  {priceInRupees > 0 && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#141417]/90 text-[#FF9D2E] border border-[#FF9D2E]/30 backdrop-blur-md shadow-md">
+                      ₹{priceInRupees} for non-NIT
+                    </span>
+                  )}
+                </>
               )}
             </div>
 
@@ -890,6 +900,10 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                   <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     LIMITED SEATS
                   </span>
+                ) : selectedSession.access_type === "paid_for_all" ? (
+                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-[#FF9D2E] border border-amber-500/30">
+                    PAID SESSION · ₹{Math.round((selectedSession.price_amount || 0) / 100)}
+                  </span>
                 ) : isNitUser ? (
                   <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-[#A855F7] border border-purple-500/30">
                     NIT RAIPUR — FREE
@@ -902,7 +916,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
                 {/* Heading */}
                 <h2 className="text-xl sm:text-2xl font-bold text-white">
-                  {selectedSession.access_type === "free_for_all" || isNitUser
+                  {selectedSession.access_type === "free_for_all" || (selectedSession.access_type === "nit_free_others_paid" && isNitUser)
                     ? "Join this session — it's free"
                     : "Join this session"}
                 </h2>
@@ -961,7 +975,11 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#09090B] border border-[rgba(255,255,255,0.06)] text-white/60 text-sm cursor-not-allowed select-none font-mono"
                 />
 
-                {isNitUser ? (
+                {selectedSession.access_type === "paid_for_all" ? (
+                  <p className="text-xs text-[#71717A] mt-1.5">
+                    All attendees pay for this session
+                  </p>
+                ) : isNitUser ? (
                   <p className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mt-1.5">
                     <CheckCircle2 size={13} className="shrink-0" />
                     <span>✓ NIT Raipur verified — this session is free for you</span>
@@ -1030,7 +1048,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
               {/* Submit CTA */}
               <div className="pt-2">
-                {selectedSession.access_type === "free_for_all" || isNitUser ? (
+                {selectedSession.access_type === "free_for_all" || (selectedSession.access_type === "nit_free_others_paid" && isNitUser) ? (
                   <button
                     type="submit"
                     disabled={submitting}

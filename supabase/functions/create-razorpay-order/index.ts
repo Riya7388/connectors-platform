@@ -69,24 +69,26 @@ serve(async (req) => {
       }
 
       // 3. Validate access type
-      if (session.access_type !== 'nit_free_others_paid') {
+      if (session.access_type === 'free_for_all') {
         return new Response(
           JSON.stringify({ error: 'This session is free — no payment required' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
       }
 
-      // 4. Recompute NIT status server-side from real auth email
-      const email = user.email?.toLowerCase().trim() || ''
-      const parts = email.split('@')
-      const domain = parts.length === 2 ? parts[1].trim() : ''
-      const isNit = domain === 'nitrr.ac.in' || domain.endsWith('.nitrr.ac.in')
+      // 4. Recompute NIT status server-side from real auth email (only for nit_free_others_paid)
+      if (session.access_type === 'nit_free_others_paid') {
+        const email = user.email?.toLowerCase().trim() || ''
+        const parts = email.split('@')
+        const domain = parts.length === 2 ? parts[1].trim() : ''
+        const isNit = domain === 'nitrr.ac.in' || domain.endsWith('.nitrr.ac.in')
 
-      if (isNit) {
-        return new Response(
-          JSON.stringify({ error: 'This session is free for NIT Raipur students' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        )
+        if (isNit) {
+          return new Response(
+            JSON.stringify({ error: 'This session is free for NIT Raipur students' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          )
+        }
       }
 
       // 5. Load registration row and assert ownership and pending status
