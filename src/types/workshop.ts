@@ -48,3 +48,25 @@ export interface WorkshopSession {
   updated_at?: string;
   speaker?: Speaker | null;
 }
+
+export type PaymentStatus = 'not_required' | 'pending' | 'paid' | 'failed';
+
+
+export interface SessionRegistration {
+  id: string;
+  session_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  year_or_class?: string | null;
+  question_for_speaker?: string | null;
+  is_nit_verified: boolean;
+  payment_status: PaymentStatus;
+  razorpay_payment_id?: string | null;
+  amount_paid: number;
+  reminder_sent: boolean;
+  start_mail_sent: boolean;
+  registered_at: string;
+  session?: WorkshopSession;
+}

@@ -7,7 +7,8 @@ import type {
   WorkshopSession, 
   SessionAccessType, 
   SessionStatus, 
-  SessionDuration 
+  SessionDuration,
+  SessionRegistration 
 } from "../types/workshop";
 import { FileUpload } from "../components/FileUpload";
 import { 
@@ -33,7 +34,9 @@ import {
   IndianRupee,
   Link2,
   Copy,
-  Layers
+  Layers,
+  ClipboardList,
+  Download
 } from "lucide-react";
 
 interface AdminProps {
@@ -112,7 +115,7 @@ const initialSessionFormData: SessionFormData = {
 };
 
 export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
-  const [adminSection, setAdminSection] = useState<"speakers" | "sessions">("sessions");
+  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations">("sessions");
   
   // Speakers State
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -132,6 +135,11 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
   const [sessionFormData, setSessionFormData] = useState<SessionFormData>(initialSessionFormData);
   const [deletingSession, setDeletingSession] = useState<WorkshopSession | null>(null);
 
+  // Registrations State
+  const [registrations, setRegistrations] = useState<SessionRegistration[]>([]);
+  const [registrationsLoading, setRegistrationsLoading] = useState(true);
+  const [selectedSessionFilter, setSelectedSessionFilter] = useState<string>("all");
+
   // Common UI states
   const [submitting, setSubmitting] = useState(false);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -142,6 +150,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
     if (isAdmin) {
       fetchSpeakers();
       fetchSessions();
+      fetchRegistrations();
     }
   }, [isAdmin]);
 
@@ -191,6 +200,32 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
       setErrorMsg("Failed to load sessions.");
     } finally {
       setSessionsLoading(false);
+    }
+  };
+
+  const fetchRegistrations = async () => {
+    setRegistrationsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("session_registrations")
+        .select(`
+          *,
+          session:workshop_sessions(
+            id,
+            title,
+            session_date,
+            start_time
+          )
+        `)
+        .order("registered_at", { ascending: false });
+
+      if (error) throw error;
+      setRegistrations((data as SessionRegistration[]) || []);
+    } catch (err: any) {
+      console.error("Error fetching registrations:", err);
+      setErrorMsg("Failed to load registrations.");
+    } finally {
+      setRegistrationsLoading(false);
     }
   };
 
@@ -480,6 +515,69 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
     return s.status === sessionFilter;
   });
 
+  const filteredRegistrations = registrations.filter((r) => {
+    if (selectedSessionFilter === "all") return true;
+    return r.session_id === selectedSessionFilter;
+  });
+
+  const nitCount = filteredRegistrations.filter((r) => r.is_nit_verified).length;
+  const nonNitCount = filteredRegistrations.filter((r) => !r.is_nit_verified).length;
+
+  const handleExportCSV = () => {
+    if (filteredRegistrations.length === 0) return;
+
+    const escapeCsv = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      const s = String(val).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const headers = [
+      "Full Name",
+      "Email",
+      "Phone",
+      "Class / Year",
+      "NIT Verified",
+      "Payment Status",
+      "Amount Paid",
+      "Question for Speaker",
+      "Session Title",
+      "Session Date",
+      "Registered At"
+    ];
+
+    const rows = filteredRegistrations.map((r) => [
+      escapeCsv(r.full_name),
+      escapeCsv(r.email),
+      escapeCsv(r.phone),
+      escapeCsv(r.year_or_class),
+      escapeCsv(r.is_nit_verified ? "Yes" : "No"),
+      escapeCsv(r.payment_status),
+      escapeCsv(r.amount_paid),
+      escapeCsv(r.question_for_speaker),
+      escapeCsv(r.session?.title || (sessions.find(s => s.id === r.session_id)?.title || "")),
+      escapeCsv(r.session?.session_date || (sessions.find(s => s.id === r.session_id)?.session_date || "")),
+      escapeCsv(r.registered_at)
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    const selectedSessionObj = sessions.find(s => s.id === selectedSessionFilter);
+    const filenameSlug = selectedSessionObj
+      ? selectedSessionObj.title.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30)
+      : "all_sessions";
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `session_registrations_${filenameSlug}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!isAdmin) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center bg-[#09090B] text-white">
@@ -520,11 +618,11 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
           </div>
 
           {/* Section Switcher & Action Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex bg-[#141417] p-1 rounded-xl border border-[rgba(255,255,255,0.08)]">
               <button
                 onClick={() => setAdminSection("sessions")}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   adminSection === "sessions"
                     ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
                     : "text-[#A1A1AA] hover:text-white"
@@ -534,13 +632,23 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               </button>
               <button
                 onClick={() => setAdminSection("speakers")}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   adminSection === "speakers"
                     ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
                     : "text-[#A1A1AA] hover:text-white"
                 }`}
               >
                 <Users size={14} /> Speakers ({speakers.length})
+              </button>
+              <button
+                onClick={() => setAdminSection("registrations")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "registrations"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <ClipboardList size={14} /> Registrations ({registrations.length})
               </button>
             </div>
 
@@ -555,7 +663,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 <Plus size={18} />
                 Create Session
               </button>
-            ) : (
+            ) : adminSection === "speakers" ? (
               <button
                 onClick={handleOpenCreateSpeaker}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
@@ -565,6 +673,18 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               >
                 <Plus size={18} />
                 Add Speaker
+              </button>
+            ) : (
+              <button
+                onClick={handleExportCSV}
+                disabled={filteredRegistrations.length === 0}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                style={{
+                  background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                }}
+              >
+                <Download size={18} />
+                Export CSV
               </button>
             )}
           </div>
@@ -879,6 +999,194 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* REGISTRATIONS SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "registrations" && (
+          <div className="space-y-6">
+            {/* Filter & Refresh Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#141417] p-4 rounded-2xl border border-[rgba(255,255,255,0.08)]">
+              <div className="flex items-center gap-3 flex-1 max-w-md">
+                <label className="text-xs font-semibold text-[#A1A1AA] shrink-0">
+                  Filter Session:
+                </label>
+                <select
+                  value={selectedSessionFilter}
+                  onChange={(e) => setSelectedSessionFilter(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-xs font-medium focus:outline-none focus:border-[#A855F7]"
+                >
+                  <option value="all">All Sessions ({sessions.length})</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.session_date})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={fetchRegistrations}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-[#A1A1AA] hover:text-white hover:border-[rgba(255,255,255,0.2)] transition-all flex items-center gap-1.5"
+                >
+                  <Loader2 size={13} className={registrationsLoading ? "animate-spin" : ""} />
+                  Refresh Data
+                </button>
+
+                <button
+                  onClick={handleExportCSV}
+                  disabled={filteredRegistrations.length === 0}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] text-white hover:bg-[#25252b] transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download size={13} />
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 space-y-1">
+                <p className="text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider">
+                  Total Registrations
+                </p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-white">
+                  {filteredRegistrations.length}
+                </p>
+                <p className="text-[11px] text-[#71717A]">
+                  {selectedSessionFilter === "all" ? "Across all sessions" : "For selected session"}
+                </p>
+              </div>
+
+              <div className="bg-[#141417] border border-emerald-500/20 rounded-2xl p-5 space-y-1">
+                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 size={14} /> NIT Raipur Verified
+                </p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-emerald-400">
+                  {nitCount}
+                </p>
+                <p className="text-[11px] text-[#71717A]">
+                  {filteredRegistrations.length > 0
+                    ? `${Math.round((nitCount / filteredRegistrations.length) * 100)}% of registrants`
+                    : "0%"}
+                </p>
+              </div>
+
+              <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-5 space-y-1">
+                <p className="text-xs font-semibold text-[#A1A1AA] uppercase tracking-wider">
+                  Non-NIT Attendees
+                </p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-white">
+                  {nonNitCount}
+                </p>
+                <p className="text-[11px] text-[#71717A]">External participants</p>
+              </div>
+            </div>
+
+            {/* Registrations Table */}
+            {registrationsLoading ? (
+              <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-[#A855F7]" />
+                <p className="text-sm text-[#A1A1AA]">Loading registrations...</p>
+              </div>
+            ) : filteredRegistrations.length === 0 ? (
+              <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-[#A855F7] mx-auto mb-4">
+                  <Users size={30} />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">No registrations found</h3>
+                <p className="text-sm text-[#A1A1AA] max-w-sm mx-auto">
+                  {selectedSessionFilter === "all"
+                    ? "No users have registered for any sessions yet."
+                    : "No users have registered for this session yet."}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-[#A1A1AA]">
+                    <thead className="bg-[#1C1C21] text-[#A1A1AA] uppercase font-bold text-[10px] tracking-wider border-b border-[rgba(255,255,255,0.08)]">
+                      <tr>
+                        <th className="py-3.5 px-4">Name</th>
+                        <th className="py-3.5 px-4">Email</th>
+                        <th className="py-3.5 px-4">Phone</th>
+                        <th className="py-3.5 px-4">Class / Year</th>
+                        <th className="py-3.5 px-4">NIT Badge</th>
+                        <th className="py-3.5 px-4">Payment</th>
+                        {selectedSessionFilter === "all" && <th className="py-3.5 px-4">Session</th>}
+                        <th className="py-3.5 px-4">Question for Speaker</th>
+                        <th className="py-3.5 px-4">Registered At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[rgba(255,255,255,0.06)]">
+                      {filteredRegistrations.map((reg) => (
+                        <tr key={reg.id} className="hover:bg-[#1C1C21]/50 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-white whitespace-nowrap">
+                            {reg.full_name}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-[11px] text-white/80 whitespace-nowrap">
+                            {reg.email}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-white/90">
+                            {reg.phone || "—"}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {reg.year_or_class || "—"}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {reg.is_nit_verified ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                <CheckCircle2 size={11} />
+                                NIT Raipur
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium text-[#71717A] bg-[#1C1C21] border border-[rgba(255,255,255,0.06)]">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className={`capitalize px-2 py-0.5 rounded-md text-[10px] font-semibold ${
+                              reg.payment_status === "paid"
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                : reg.payment_status === "not_required"
+                                ? "bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                                : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
+                            }`}>
+                              {reg.payment_status.replace("_", " ")}
+                            </span>
+                          </td>
+                          {selectedSessionFilter === "all" && (
+                            <td className="py-3.5 px-4 max-w-[180px] truncate text-white" title={reg.session?.title || ""}>
+                              {reg.session?.title || "—"}
+                            </td>
+                          )}
+                          <td className="py-3.5 px-4 max-w-[220px] truncate" title={reg.question_for_speaker || ""}>
+                            {reg.question_for_speaker ? (
+                              <span className="text-white/80">{reg.question_for_speaker}</span>
+                            ) : (
+                              <span className="text-[#71717A]">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-[#71717A] text-[11px]">
+                            {new Date(reg.registered_at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

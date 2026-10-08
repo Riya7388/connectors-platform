@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabase";
-import type { WorkshopSession } from "../types/workshop";
+import type { WorkshopSession, SessionRegistration } from "../types/workshop";
+import { isNitEmail } from "../lib/nitEmail";
 import { 
   Calendar, 
   Clock, 
-  Users, 
   Sparkles, 
   ArrowRight, 
   Loader2, 
   Mic2,
   CalendarDays,
   CheckCircle2,
-  ExternalLink
+  AlertCircle,
+  X,
+  Phone,
+  User,
+  HelpCircle,
+  GraduationCap
 } from "lucide-react";
 
 // Admin: replace with the live Google Form URL
@@ -26,16 +31,43 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // User auth and registrations state
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [userRegistrations, setUserRegistrations] = useState<Record<string, SessionRegistration>>({});
+  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
+
+  // Registration Modal State
+  const [selectedSession, setSelectedSession] = useState<WorkshopSession | null>(null);
+  const [regName, setRegName] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regYear, setRegYear] = useState("");
+  const [regQuestion, setRegQuestion] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // Cancellation State (inline 2-step confirm modal)
+  const [cancellingSession, setCancellingSession] = useState<WorkshopSession | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  // Toast / Status notification
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   useEffect(() => {
-    fetchSessions();
+    fetchUserDataAndSessions();
   }, []);
 
-  const fetchSessions = async () => {
+  const fetchUserDataAndSessions = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Note: we intentionally do not query or display meet_link on public view
-      const { data, error: fetchError } = await supabase
+      // 1. Get current logged in user
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+
+      // 2. Fetch all sessions
+      const { data: sessionData, error: fetchError } = await supabase
         .from("workshop_sessions")
         .select(`
           id,
@@ -66,12 +98,185 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
         .order("start_time", { ascending: true });
 
       if (fetchError) throw fetchError;
-      setSessions((data as unknown as WorkshopSession[]) || []);
+      setSessions((sessionData as unknown as WorkshopSession[]) || []);
+
+      // 3. Fetch registrations for current user if logged in
+      if (user) {
+        const { data: regData, error: regError } = await supabase
+          .from("session_registrations")
+          .select("*")
+          .eq("user_id", user.id);
+
+        if (!regError && regData) {
+          const regMap: Record<string, SessionRegistration> = {};
+          regData.forEach((r: SessionRegistration) => {
+            regMap[r.session_id] = r;
+          });
+          setUserRegistrations(regMap);
+        }
+      }
+
+      // 4. Fetch total registration counts per session (for capacity checking)
+      const { data: countData } = await supabase
+        .from("session_registrations")
+        .select("session_id");
+
+      if (countData) {
+        const counts: Record<string, number> = {};
+        countData.forEach((r: { session_id: string }) => {
+          counts[r.session_id] = (counts[r.session_id] || 0) + 1;
+        });
+        setRegistrationCounts(counts);
+      }
     } catch (err: any) {
       console.error("Error fetching workshop sessions:", err);
       setError("Failed to load sessions. Please refresh the page.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenRegisterModal = (session: WorkshopSession) => {
+    setSelectedSession(session);
+    setFormError(null);
+    setFormSuccess(null);
+    setRegQuestion("");
+    // Pre-fill name from user profile metadata if available
+    const meta = currentUser?.user_metadata;
+    const name = meta?.full_name || meta?.name || meta?.display_name || "";
+    setRegName(name);
+    setRegPhone(meta?.phone || "");
+    setRegYear(meta?.year_or_class || "");
+  };
+
+  const handleCloseRegisterModal = () => {
+    setSelectedSession(null);
+    setFormError(null);
+    setFormSuccess(null);
+    setSubmitting(false);
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSession || !currentUser) return;
+
+    // Validate phone number: minimum 10 digits
+    const cleanedPhone = regPhone.replace(/\D/g, "");
+    if (cleanedPhone.length < 10) {
+      setFormError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    if (!regName.trim()) {
+      setFormError("Please enter your full name.");
+      return;
+    }
+
+    if (!regYear.trim()) {
+      setFormError("Please select your class or year of study.");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+
+    const isNit = isNitEmail(currentUser.email);
+    const isFree = selectedSession.access_type === "free_for_all" || isNit;
+
+    if (!isFree) {
+      setFormError("Paid registrations are opening soon.");
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const { data, error: insertError } = await supabase
+        .from("session_registrations")
+        .insert({
+          session_id: selectedSession.id,
+          user_id: currentUser.id,
+          full_name: regName.trim(),
+          email: currentUser.email,
+          phone: regPhone.trim(),
+          year_or_class: regYear.trim(),
+          question_for_speaker: regQuestion.trim() || null,
+          is_nit_verified: isNit,
+          payment_status: "not_required",
+          amount_paid: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        // Handle duplicate key error gracefully
+        if (
+          insertError.code === "23505" ||
+          insertError.message?.toLowerCase().includes("unique") ||
+          insertError.message?.toLowerCase().includes("duplicate")
+        ) {
+          setFormError("You're already registered for this session.");
+        } else {
+          setFormError(insertError.message || "Failed to complete registration.");
+        }
+        setSubmitting(false);
+        return;
+      }
+
+      // Successful registration
+      const newReg = data as SessionRegistration;
+      setUserRegistrations((prev) => ({
+        ...prev,
+        [selectedSession.id]: newReg,
+      }));
+      setRegistrationCounts((prev) => ({
+        ...prev,
+        [selectedSession.id]: (prev[selectedSession.id] || 0) + 1,
+      }));
+
+      setToastMessage(`Registered successfully for "${selectedSession.title}"!`);
+      setTimeout(() => setToastMessage(null), 5000);
+      handleCloseRegisterModal();
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      setFormError(err.message || "An unexpected error occurred.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelRegistration = async () => {
+    if (!cancellingSession || !currentUser) return;
+    setCancelLoading(true);
+    setCancelError(null);
+
+    try {
+      const { error: delError } = await supabase
+        .from("session_registrations")
+        .delete()
+        .eq("session_id", cancellingSession.id)
+        .eq("user_id", currentUser.id);
+
+      if (delError) throw delError;
+
+      // Update local state without full reload
+      setUserRegistrations((prev) => {
+        const next = { ...prev };
+        delete next[cancellingSession.id];
+        return next;
+      });
+      setRegistrationCounts((prev) => ({
+        ...prev,
+        [cancellingSession.id]: Math.max(0, (prev[cancellingSession.id] || 1) - 1),
+      }));
+
+      setToastMessage(`Registration cancelled for "${cancellingSession.title}".`);
+      setTimeout(() => setToastMessage(null), 5000);
+      setCancellingSession(null);
+    } catch (err: any) {
+      console.error("Error cancelling registration:", err);
+      setCancelError(err.message || "Failed to cancel registration.");
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -115,6 +320,10 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
   const renderSessionCard = (session: WorkshopSession, isDimmed = false) => {
     const isFreeForAll = session.access_type === "free_for_all";
     const priceInRupees = Math.round((session.price_amount || 0) / 100);
+    const isRegistered = !!userRegistrations[session.id];
+    const sessionIsPast = isPast(session);
+    const count = registrationCounts[session.id] || 0;
+    const isFull = !!(session.capacity && count >= session.capacity);
 
     return (
       <div
@@ -251,23 +460,77 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           </div>
         </div>
 
-        {/* Card Footer: Disabled Register CTA (Phase 2 constraint) */}
+        {/* Card Footer: Dynamic Register CTA */}
         <div className="p-5 sm:p-6 pt-0">
-          <button
-            type="button"
-            disabled
-            className="w-full py-3 px-4 rounded-xl text-sm font-bold text-white/60 bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <span>Registration opening soon</span>
-          </button>
+          {sessionIsPast ? (
+            <button
+              type="button"
+              disabled
+              className="w-full py-3 px-4 rounded-xl text-sm font-bold text-zinc-500 bg-[#1C1C21] border border-[rgba(255,255,255,0.06)] cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>Closed</span>
+            </button>
+          ) : isRegistered ? (
+            <div className="space-y-2 w-full">
+              <div className="w-full py-2.5 px-4 rounded-xl text-sm font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2">
+                <CheckCircle2 size={16} />
+                <span>✓ Registered</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancellingSession(session)}
+                className="w-full text-center text-xs text-[#71717A] hover:text-red-400 transition-colors py-0.5 cursor-pointer underline underline-offset-2"
+              >
+                Cancel registration
+              </button>
+            </div>
+          ) : isFull ? (
+            <button
+              type="button"
+              disabled
+              className="w-full py-3 px-4 rounded-xl text-sm font-bold text-zinc-400 bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>Session full</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleOpenRegisterModal(session)}
+              className="w-full py-3 px-4 rounded-xl text-sm font-bold text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              style={{
+                background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+              }}
+            >
+              <span>Register for Session</span>
+              <ArrowRight size={16} />
+            </button>
+          )}
         </div>
       </div>
     );
   };
 
+  const isNitUser = isNitEmail(currentUser?.email);
+
   return (
     <div className="min-h-screen bg-[#09090B] text-white py-8 px-4 sm:px-6 lg:px-8 space-y-12">
       <div className="max-w-6xl mx-auto space-y-12">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed top-6 right-6 z-50 p-4 rounded-2xl bg-[#141417] border border-emerald-500/40 text-white shadow-2xl flex items-center gap-3 animate-fade-in max-w-md">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+            <p className="text-xs sm:text-sm font-medium">{toastMessage}</p>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-[#71717A] hover:text-white ml-auto"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         {/* 1. Page Header */}
         <div className="text-center sm:text-left space-y-2 border-b border-[rgba(255,255,255,0.08)] pb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.08em] bg-[rgba(168,85,247,0.12)] text-[#A855F7] border border-[rgba(168,85,247,0.3)]">
@@ -292,7 +555,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-center space-y-3">
             <p className="text-red-400 text-sm font-medium">{error}</p>
             <button
-              onClick={fetchSessions}
+              onClick={fetchUserDataAndSessions}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] text-white hover:bg-[#25252b]"
             >
               Retry
@@ -387,6 +650,271 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           </>
         )}
       </div>
+
+      {/* ===================================================================== */}
+      {/* REGISTRATION MODAL */}
+      {/* ===================================================================== */}
+      {selectedSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-fade-in">
+          <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl my-8">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-[rgba(255,255,255,0.08)] relative">
+              <button
+                type="button"
+                onClick={handleCloseRegisterModal}
+                className="absolute top-6 right-6 text-[#A1A1AA] hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="space-y-2">
+                {/* Pill Indicator */}
+                {selectedSession.access_type === "free_for_all" ? (
+                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    LIMITED SEATS
+                  </span>
+                ) : isNitUser ? (
+                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-[#A855F7] border border-purple-500/30">
+                    NIT RAIPUR — FREE
+                  </span>
+                ) : (
+                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-[#FF9D2E] border border-amber-500/30">
+                    PAID FOR NON-NIT
+                  </span>
+                )}
+
+                {/* Heading */}
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  {selectedSession.access_type === "free_for_all" || isNitUser
+                    ? "Join this session — it's free"
+                    : "Join this session"}
+                </h2>
+
+                <p className="text-xs text-[#A1A1AA]">
+                  Session link will be sent to your email before the start. Zero spam.
+                </p>
+              </div>
+
+              {/* Session Mini Preview */}
+              <div className="mt-4 p-3 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.06)] flex items-center justify-between gap-3 text-xs text-[#A1A1AA]">
+                <div className="truncate font-semibold text-white">
+                  {selectedSession.title}
+                </div>
+                <div className="shrink-0 text-[#FF9D2E] font-medium">
+                  {formatSessionDate(selectedSession.session_date)}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body & Form */}
+            <form onSubmit={handleRegisterSubmit} className="p-6 space-y-4">
+              {formError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* 1. Full Name */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
+                  <User size={13} className="text-[#A855F7]" />
+                  <span>Full Name <span className="text-red-400">*</span></span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-sm focus:outline-none focus:border-[#A855F7]"
+                />
+              </div>
+
+              {/* 2. Email (Read-only + disabled from Auth) */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5">
+                  Account Email <span className="text-[11px] text-[#71717A]">(Logged-in Identity)</span>
+                </label>
+                <input
+                  type="email"
+                  readOnly
+                  disabled
+                  value={currentUser?.email || ""}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#09090B] border border-[rgba(255,255,255,0.06)] text-white/60 text-sm cursor-not-allowed select-none font-mono"
+                />
+
+                {isNitUser ? (
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mt-1.5">
+                    <CheckCircle2 size={13} className="shrink-0" />
+                    <span>✓ NIT Raipur verified — this session is free for you</span>
+                  </p>
+                ) : selectedSession.access_type === "nit_free_others_paid" ? (
+                  <p className="text-xs text-[#71717A] mt-1.5">
+                    Not an NIT Raipur account
+                  </p>
+                ) : null}
+              </div>
+
+              {/* 3. Phone */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
+                  <Phone size={13} className="text-[#FF9D2E]" />
+                  <span>WhatsApp / Phone <span className="text-red-400">*</span></span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="10-digit mobile number"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-sm focus:outline-none focus:border-[#A855F7]"
+                />
+              </div>
+
+              {/* 4. Class / Year of Study */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
+                  <GraduationCap size={13} className="text-[#FF2D8F]" />
+                  <span>Class / Year of Study <span className="text-red-400">*</span></span>
+                </label>
+                <select
+                  required
+                  value={regYear}
+                  onChange={(e) => setRegYear(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-sm focus:outline-none focus:border-[#A855F7]"
+                >
+                  <option value="">Select your year / status</option>
+                  <option value="Class 11 / 12">Class 11 / 12</option>
+                  <option value="1st Year UG">1st Year (UG)</option>
+                  <option value="2nd Year UG">2nd Year (UG)</option>
+                  <option value="3rd Year UG">3rd Year (UG)</option>
+                  <option value="4th Year / Final Year UG">4th Year / Final Year (UG)</option>
+                  <option value="Postgraduate / M.Tech / PhD">Postgraduate / M.Tech / PhD</option>
+                  <option value="Alumni / Working Professional">Alumni / Working Professional</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 5. Question for Speaker */}
+              <div>
+                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
+                  <HelpCircle size={13} className="text-[#4F46E5]" />
+                  <span>Question for Speaker <span className="text-[#71717A] font-normal">(optional)</span></span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={regQuestion}
+                  onChange={(e) => setRegQuestion(e.target.value)}
+                  placeholder="Anything specific you'd like the speaker to answer?"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-sm focus:outline-none focus:border-[#A855F7] resize-none"
+                />
+              </div>
+
+              {/* Submit CTA */}
+              <div className="pt-2">
+                {selectedSession.access_type === "free_for_all" || isNitUser ? (
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                    style={{
+                      background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                    }}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Registering...</span>
+                      </>
+                    ) : (
+                      <span>Register for Session</span>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white/50 bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <span>Pay ₹{Math.round((selectedSession.price_amount || 0) / 100)} & Register</span>
+                    </button>
+                    <p className="text-center text-xs text-[#71717A]">
+                      Paid registration opening soon
+                    </p>
+                  </div>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* CANCEL REGISTRATION CONFIRMATION MODAL (Inline 2-step confirm) */}
+      {/* ===================================================================== */}
+      {cancellingSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Cancel Registration?</h3>
+                <p className="text-xs text-[#A1A1AA]">
+                  Your seat will be released for others.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] space-y-1 text-xs">
+              <div className="font-semibold text-white truncate">
+                {cancellingSession.title}
+              </div>
+              <div className="text-[#A1A1AA]">
+                {formatSessionDate(cancellingSession.session_date)} at {formatSessionTime(cancellingSession.start_time)}
+              </div>
+            </div>
+
+            {cancelError && (
+              <p className="text-xs text-red-400 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
+                {cancelError}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={cancelLoading}
+                onClick={() => {
+                  setCancellingSession(null);
+                  setCancelError(null);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#A1A1AA] hover:text-white bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] transition-all"
+              >
+                Keep Registration
+              </button>
+              <button
+                type="button"
+                disabled={cancelLoading}
+                onClick={handleCancelRegistration}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 transition-all flex items-center gap-1.5 shadow-lg shadow-red-950/40"
+              >
+                {cancelLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Cancelling...</span>
+                  </>
+                ) : (
+                  <span>Yes, Cancel</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
