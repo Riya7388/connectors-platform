@@ -836,18 +836,40 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                           </div>
                         )}
 
-                        {/* Meet link notice */}
+                        {/* Meet link notice & Missing warning */}
                         {session.meet_link ? (
                           <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
                             <Link2 size={12} />
                             <span className="truncate">Meet link configured</span>
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#71717A] bg-[#1C1C21] px-2.5 py-1 rounded-lg border border-[rgba(255,255,255,0.06)]">
-                            <AlertCircle size={12} />
-                            <span>No Meet link yet</span>
-                          </div>
-                        )}
+                        ) : (() => {
+                          const isUpcoming = session.status === "upcoming";
+                          let isWithinTwoHours = false;
+                          try {
+                            const sessionDateTime = new Date(`${session.session_date}T${session.start_time}`);
+                            const now = new Date();
+                            const diffHours = (sessionDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+                            isWithinTwoHours = diffHours >= 0 && diffHours <= 2;
+                          } catch {
+                            isWithinTwoHours = false;
+                          }
+
+                          if (isUpcoming && isWithinTwoHours) {
+                            return (
+                              <div className="flex items-start gap-1.5 text-[11px] font-semibold text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/30 leading-snug">
+                                <AlertCircle size={13} className="shrink-0 mt-0.5 text-amber-400" />
+                                <span>⚠ Meet link missing — reminder emails will go out without it.</span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center gap-1.5 text-[11px] text-[#71717A] bg-[#1C1C21] px-2.5 py-1 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                              <AlertCircle size={12} />
+                              <span>No Meet link yet</span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Actions */}

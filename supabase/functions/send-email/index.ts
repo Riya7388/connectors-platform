@@ -2,10 +2,146 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
+const FROM_EMAIL = 'Connectors <noreply@connectorsapp.info>'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const getWorkshopEmailHtml = ({
+  badge,
+  badgeBg,
+  badgeColor,
+  title,
+  subtitle,
+  speakerName,
+  sessionTitle,
+  sessionDateTime,
+  durationMinutes,
+  meetLink,
+  buttonText,
+  footerNote,
+}: {
+  badge: string
+  badgeBg: string
+  badgeColor: string
+  title: string
+  subtitle: string
+  speakerName: string
+  sessionTitle: string
+  sessionDateTime: string
+  durationMinutes?: number
+  meetLink?: string
+  buttonText?: string
+  footerNote?: string
+}) => {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09090B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #FFFFFF;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #09090B; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #141417; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; overflow: hidden; text-align: left;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="padding: 32px 32px 20px 32px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td>
+                    <span style="display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; background-color: ${badgeBg}; color: ${badgeColor}; border-radius: 6px; margin-bottom: 12px;">
+                      ${badge}
+                    </span>
+                    <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #FFFFFF; line-height: 1.3;">
+                      ${title}
+                    </h1>
+                    <p style="margin: 6px 0 0 0; font-size: 14px; color: #A1A1AA; line-height: 1.5;">
+                      ${subtitle}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Session Details Card -->
+          <tr>
+            <td style="padding: 24px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #1C1C21; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 20px;">
+                <tr>
+                  <td>
+                    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 700; color: #FFFFFF; line-height: 1.4;">
+                      ${sessionTitle}
+                    </h2>
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #A1A1AA; line-height: 1.8;">
+                      <tr>
+                        <td width="90" style="color: #71717A; font-weight: 600;">Speaker</td>
+                        <td style="color: #FFFFFF; font-weight: 600;">${speakerName}</td>
+                      </tr>
+                      <tr>
+                        <td width="90" style="color: #71717A; font-weight: 600;">Schedule</td>
+                        <td style="color: #FF9D2E; font-weight: 600;">${sessionDateTime}</td>
+                      </tr>
+                      ${durationMinutes ? `
+                      <tr>
+                        <td width="90" style="color: #71717A; font-weight: 600;">Duration</td>
+                        <td style="color: #FFFFFF;">${durationMinutes} minutes</td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button or Message -->
+              ${meetLink ? `
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 24px;">
+                <tr>
+                  <td align="center">
+                    <a href="${meetLink}" target="_blank" style="display: block; background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%); color: #FFFFFF; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 28px; border-radius: 12px; text-align: center; box-shadow: 0 4px 14px rgba(168, 85, 247, 0.25);">
+                      ${buttonText || 'Join Live Session'} &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              ` : footerNote ? `
+              <div style="margin-top: 20px; padding: 12px 16px; background-color: rgba(255, 157, 46, 0.1); border: 1px solid rgba(255, 157, 46, 0.25); border-radius: 10px; color: #FF9D2E; font-size: 13px; line-height: 1.5;">
+                ${footerNote}
+              </div>
+              ` : ''}
+
+              ${meetLink && footerNote ? `
+              <p style="margin: 16px 0 0 0; font-size: 12px; color: #71717A; text-align: center; line-height: 1.5;">
+                ${footerNote}
+              </p>
+              ` : ''}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px 28px 32px; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #71717A;">
+                Connectors Mentorship Platform &bull; NIT Raipur
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`
 }
 
 serve(async (req) => {
@@ -27,7 +163,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { type, studentId, mentorId, senderId, recipientId, date, time, reporterId, reason, details, bookingId, meet_link, amount } = await req.json()
+    const body = await req.json()
+    const { 
+      type, 
+      studentId, 
+      mentorId, 
+      senderId, 
+      recipientId, 
+      date, 
+      time, 
+      reporterId, 
+      reason, 
+      details, 
+      bookingId, 
+      meet_link, 
+      amount,
+      to: directTo,
+      data
+    } = body
 
     // Helper to get user email and name
     const getUserData = async (uid: string) => {
@@ -143,6 +296,60 @@ serve(async (req) => {
               <p>This is a quick reminder that your mentorship session starts in about 30 minutes at ${time}.</p>
               <p><strong>Join here:</strong> <a href="${meet_link}">${meet_link}</a></p>
               <p>See you soon!</p>`
+    } else if (type === 'workshop_registered') {
+      to = Array.isArray(directTo) ? directTo : [directTo]
+      subject = `Registration Confirmed: ${data?.session_title || 'Workshop Session'}`
+      html = getWorkshopEmailHtml({
+        badge: 'Registration Confirmed',
+        badgeBg: 'rgba(16, 185, 129, 0.15)',
+        badgeColor: '#10B981',
+        title: `You're registered, ${data?.full_name || 'Student'}!`,
+        subtitle: `Your seat has been reserved. Session link will be sent to your email before the start.`,
+        sessionTitle: data?.session_title || 'Workshop Session',
+        speakerName: data?.speaker_name || 'Connectors Team',
+        sessionDateTime: data?.session_datetime_ist || 'Scheduled Soon',
+        durationMinutes: data?.duration_minutes,
+        meetLink: undefined,
+        footerNote: `We'll email you the direct Google Meet link before the session starts. Zero spam.`
+      })
+    } else if (type === 'workshop_reminder') {
+      to = Array.isArray(directTo) ? directTo : [directTo]
+      subject = `⏰ Starting Soon: ${data?.session_title || 'Workshop Session'}`
+      html = getWorkshopEmailHtml({
+        badge: 'Starting Soon',
+        badgeBg: 'rgba(255, 157, 46, 0.15)',
+        badgeColor: '#FF9D2E',
+        title: `Workshop Starting Soon!`,
+        subtitle: `Hi ${data?.full_name || 'there'}, get ready! The masterclass is about to begin.`,
+        sessionTitle: data?.session_title || 'Workshop Session',
+        speakerName: data?.speaker_name || 'Connectors Team',
+        sessionDateTime: data?.session_datetime_ist || 'Scheduled Soon',
+        durationMinutes: data?.duration_minutes,
+        meetLink: data?.meet_link?.trim() || undefined,
+        buttonText: 'Join Live Workshop',
+        footerNote: data?.meet_link?.trim()
+          ? 'Please join on time to get the most out of the interactive Q&A.'
+          : 'The live session link will follow shortly.'
+      })
+    } else if (type === 'workshop_started') {
+      to = Array.isArray(directTo) ? directTo : [directTo]
+      subject = `🔴 LIVE NOW: ${data?.session_title || 'Workshop Session'}`
+      html = getWorkshopEmailHtml({
+        badge: '🔴 Live Now',
+        badgeBg: 'rgba(239, 68, 68, 0.15)',
+        badgeColor: '#EF4444',
+        title: `We're Live Now!`,
+        subtitle: `Hi ${data?.full_name || 'there'}, the workshop has started. Join the room below:`,
+        sessionTitle: data?.session_title || 'Workshop Session',
+        speakerName: data?.speaker_name || 'Connectors Team',
+        sessionDateTime: data?.session_datetime_ist || 'Happening Now',
+        durationMinutes: data?.duration_minutes,
+        meetLink: data?.meet_link?.trim() || undefined,
+        buttonText: 'Enter Live Room',
+        footerNote: data?.meet_link?.trim()
+          ? 'Please note: This link is personal to your registration.'
+          : 'The live session link will follow shortly.'
+      })
     } else {
       throw new Error(`Unknown email type: ${type}`)
     }
@@ -155,7 +362,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        from: 'Connectors <onboarding@resend.dev>', // Replace with your verified domain
+        from: FROM_EMAIL,
         to,
         subject,
         html
