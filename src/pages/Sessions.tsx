@@ -55,7 +55,6 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
   const [selectedSession, setSelectedSession] = useState<WorkshopSession | null>(null);
   const [regName, setRegName] = useState("");
   const [regPhone, setRegPhone] = useState("");
-  const [regYear, setRegYear] = useState("");
   const [regQuestion, setRegQuestion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,7 +163,6 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
     const name = meta?.full_name || meta?.name || meta?.display_name || "";
     setRegName(name);
     setRegPhone(meta?.phone || "");
-    setRegYear(meta?.year_or_class || "");
   };
 
   const handleCloseRegisterModal = () => {
@@ -187,11 +185,6 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
     if (!regName.trim()) {
       setFormError("Please enter your full name.");
-      return;
-    }
-
-    if (!regYear.trim()) {
-      setFormError("Please select your class or year of study.");
       return;
     }
 
@@ -218,7 +211,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           full_name: regName.trim(),
           email: currentUser.email,
           phone: regPhone.trim(),
-          year_or_class: regYear.trim(),
+          year_or_class: null,
           question_for_speaker: regQuestion.trim() || null,
           is_nit_verified: isNit,
           payment_status: "not_required",
@@ -288,11 +281,6 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
         setPaymentProcessing(false);
         return;
       }
-      if (!regYear.trim()) {
-        setFormError("Please select your class or year of study.");
-        setPaymentProcessing(false);
-        return;
-      }
 
       // Step 2: Insert a 'pending' registration row to hold the seat
       const { data: pendingReg, error: insertError } = await supabase
@@ -303,7 +291,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           full_name: regName.trim(),
           email: currentUser.email,
           phone: regPhone.trim(),
-          year_or_class: regYear.trim(),
+          year_or_class: null,
           question_for_speaker: regQuestion.trim() || null,
           is_nit_verified: isNitUser,
           payment_status: "pending",
@@ -536,7 +524,6 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
   const renderSessionCard = (session: WorkshopSession, isDimmed = false) => {
     const isFreeForAll = session.access_type === "free_for_all";
-    const isPaidForAll = session.access_type === "paid_for_all";
     const priceInRupees = Math.round((session.price_amount || 0) / 100);
     const isRegistered = !!userRegistrations[session.id];
     const sessionIsPast = isPast(session);
@@ -579,29 +566,14 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
             {/* Access Badge (Top-Left) */}
             <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-              {isFreeForAll ? (
+              {isFreeForAll || (session.access_type === "nit_free_others_paid" && currentUser && isNitUser) ? (
                 <span className="px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide bg-emerald-500/90 text-white backdrop-blur-md shadow-md">
                   FREE
                 </span>
-              ) : isPaidForAll ? (
-                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#141417]/90 text-[#FF9D2E] border border-[#FF9D2E]/30 backdrop-blur-md shadow-md">
-                  ₹{priceInRupees} · Paid session
-                </span>
-              ) : currentUser && isNitUser ? (
-                <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-emerald-500/90 text-white backdrop-blur-md shadow-md">
-                  FREE for you — NIT Raipur verified
-                </span>
               ) : (
-                <>
-                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-[rgba(168,85,247,0.9)] text-white backdrop-blur-md shadow-md">
-                    FREE for NIT Raipur
-                  </span>
-                  {priceInRupees > 0 && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#141417]/90 text-[#FF9D2E] border border-[#FF9D2E]/30 backdrop-blur-md shadow-md">
-                      ₹{priceInRupees} for non-NIT
-                    </span>
-                  )}
-                </>
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#141417]/90 text-[#FF9D2E] border border-[#FF9D2E]/30 backdrop-blur-md shadow-md">
+                  ₹{priceInRupees}
+                </span>
               )}
             </div>
 
@@ -900,17 +872,13 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                   <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     LIMITED SEATS
                   </span>
-                ) : selectedSession.access_type === "paid_for_all" ? (
-                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-[#FF9D2E] border border-amber-500/30">
-                    PAID SESSION · ₹{Math.round((selectedSession.price_amount || 0) / 100)}
-                  </span>
-                ) : isNitUser ? (
-                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-[#A855F7] border border-purple-500/30">
-                    NIT RAIPUR — FREE
+                ) : selectedSession.access_type === "nit_free_others_paid" && isNitUser ? (
+                  <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    FREE
                   </span>
                 ) : (
                   <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-[#FF9D2E] border border-amber-500/30">
-                    PAID FOR NON-NIT
+                    ₹{Math.round((selectedSession.price_amount || 0) / 100)}
                   </span>
                 )}
 
@@ -975,20 +943,12 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#09090B] border border-[rgba(255,255,255,0.06)] text-white/60 text-sm cursor-not-allowed select-none font-mono"
                 />
 
-                {selectedSession.access_type === "paid_for_all" ? (
-                  <p className="text-xs text-[#71717A] mt-1.5">
-                    All attendees pay for this session
-                  </p>
-                ) : isNitUser ? (
+                {selectedSession.access_type === "nit_free_others_paid" && isNitUser && (
                   <p className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mt-1.5">
                     <CheckCircle2 size={13} className="shrink-0" />
                     <span>✓ NIT Raipur verified — this session is free for you</span>
                   </p>
-                ) : selectedSession.access_type === "nit_free_others_paid" ? (
-                  <p className="text-xs text-[#71717A] mt-1.5">
-                    Not an NIT Raipur account
-                  </p>
-                ) : null}
+                )}
               </div>
 
               {/* 3. Phone */}
@@ -1007,31 +967,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                 />
               </div>
 
-              {/* 4. Class / Year of Study */}
-              <div>
-                <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
-                  <GraduationCap size={13} className="text-[#FF2D8F]" />
-                  <span>Class / Year of Study <span className="text-red-400">*</span></span>
-                </label>
-                <select
-                  required
-                  value={regYear}
-                  onChange={(e) => setRegYear(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] text-white text-sm focus:outline-none focus:border-[#A855F7]"
-                >
-                  <option value="">Select your year / status</option>
-                  <option value="Class 11 / 12">Class 11 / 12</option>
-                  <option value="1st Year UG">1st Year (UG)</option>
-                  <option value="2nd Year UG">2nd Year (UG)</option>
-                  <option value="3rd Year UG">3rd Year (UG)</option>
-                  <option value="4th Year / Final Year UG">4th Year / Final Year (UG)</option>
-                  <option value="Postgraduate / M.Tech / PhD">Postgraduate / M.Tech / PhD</option>
-                  <option value="Alumni / Working Professional">Alumni / Working Professional</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              {/* 5. Question for Speaker */}
+              {/* 4. Question for Speaker */}
               <div>
                 <label className="block text-xs font-semibold text-[#A1A1AA] mb-1.5 flex items-center gap-1.5">
                   <HelpCircle size={13} className="text-[#4F46E5]" />

@@ -1513,7 +1513,6 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                         <th className="py-3.5 px-4">Name</th>
                         <th className="py-3.5 px-4">Email</th>
                         <th className="py-3.5 px-4">Phone</th>
-                        <th className="py-3.5 px-4">Class / Year</th>
                         <th className="py-3.5 px-4">NIT Badge</th>
                         <th className="py-3.5 px-4">Payment</th>
                         {selectedSessionFilter === "all" && <th className="py-3.5 px-4">Session</th>}
@@ -1532,9 +1531,6 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap text-white/90">
                             {reg.phone || "—"}
-                          </td>
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {reg.year_or_class || "—"}
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             {reg.is_nit_verified ? (
@@ -2189,9 +2185,19 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 {/* Google Meet link & Capacity */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-[#A1A1AA]">
-                      Google Meet Link
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-[#A1A1AA]">
+                        Google Meet Link
+                      </label>
+                      <a
+                        href="https://meet.google.com/new"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-[#A855F7] hover:text-[#c084fc] flex items-center gap-1 transition-colors"
+                      >
+                        <span>Open Google Meet →</span>
+                      </a>
+                    </div>
                     <input
                       type="text"
                       value={sessionFormData.meet_link}
