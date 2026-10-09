@@ -44,6 +44,8 @@ export interface WorkshopSession {
   capacity?: number | null;
   cover_image_url?: string | null;
   status: SessionStatus;
+  recording_url?: string | null;
+  resource_summary?: string | null;
   created_at?: string;
   updated_at?: string;
   speaker?: Speaker | null;

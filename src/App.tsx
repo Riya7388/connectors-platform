@@ -16,6 +16,7 @@ import { Admin } from "./pages/Admin";
 import { SpeakerProfile } from "./pages/SpeakerProfile";
 import { Sessions } from "./pages/Sessions";
 import { Polls } from "./pages/Polls";
+import { ResourceLibrary } from "./pages/ResourceLibrary";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -136,6 +137,8 @@ function App() {
         return <Sessions setActiveTab={handleSetActiveTab} />;
       case "polls":
         return <Polls setActiveTab={handleSetActiveTab} />;
+      case "resources":
+        return <ResourceLibrary setActiveTab={handleSetActiveTab} />;
       case "admin":
         return <Admin setActiveTab={handleSetActiveTab} isAdmin={isAdmin} />;
       default:
@@ -165,7 +168,7 @@ function App() {
   }
 
   // Public routes accessible without session
-  const isPublicRoute = activeTab === "terms" || activeTab === "faq";
+  const isPublicRoute = activeTab === "terms" || activeTab === "faq" || activeTab === "resources";
 
   // No session → if viewing a public route, render public shell; otherwise full-screen auth
   if (!session) {

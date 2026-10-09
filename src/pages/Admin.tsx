@@ -112,6 +112,8 @@ interface SessionFormData {
   meet_link: string;
   cover_image_url: string;
   status: SessionStatus;
+  recording_url: string;
+  resource_summary: string;
 }
 
 const initialSessionFormData: SessionFormData = {
@@ -127,6 +129,8 @@ const initialSessionFormData: SessionFormData = {
   meet_link: "",
   cover_image_url: "",
   status: "upcoming",
+  recording_url: "",
+  resource_summary: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -749,6 +753,8 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
       meet_link: session.meet_link || "",
       cover_image_url: session.cover_image_url || "",
       status: session.status || "upcoming",
+      recording_url: session.recording_url || "",
+      resource_summary: session.resource_summary || "",
     });
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -799,6 +805,8 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
         capacity: sessionFormData.capacity ? parseInt(sessionFormData.capacity, 10) : null,
         cover_image_url: sessionFormData.cover_image_url || null,
         status: sessionFormData.status,
+        recording_url: sessionFormData.recording_url.trim() || null,
+        resource_summary: sessionFormData.resource_summary.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -2253,6 +2261,35 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                     <option value="completed">Completed (Archived)</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
+                </div>
+
+                {/* ── Post-Session Resources ────────────────────────────── */}
+                <div className="border border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 bg-[#0F0F12]">
+                  <p className="text-xs font-bold uppercase tracking-widest text-[#71717A]">Post-Session Resources (Optional)</p>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">Recording URL</label>
+                    <input
+                      type="url"
+                      value={sessionFormData.recording_url}
+                      onChange={(e) => setSessionFormData({ ...sessionFormData, recording_url: e.target.value })}
+                      placeholder="https://youtube.com/watch?v=... or Google Drive link"
+                      className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-[#71717A] outline-none transition-colors"
+                    />
+                    <p className="text-[11px] text-[#71717A]">YouTube, Google Drive, Loom, etc. Shown publicly on the Resource Library page.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-[#A1A1AA]">Key Takeaways / Summary</label>
+                    <textarea
+                      rows={4}
+                      value={sessionFormData.resource_summary}
+                      onChange={(e) => setSessionFormData({ ...sessionFormData, resource_summary: e.target.value })}
+                      placeholder="• Tip 1&#10;• Tip 2&#10;• Tip 3"
+                      className="w-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] focus:border-[#A855F7] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-[#71717A] outline-none transition-colors resize-none"
+                    />
+                    <p className="text-[11px] text-[#71717A]">Plain text bullet points or a short summary. Shown under the session card on the Resource Library page.</p>
+                  </div>
                 </div>
 
                 {/* Form Buttons */}
