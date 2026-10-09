@@ -1,5 +1,5 @@
 import React from "react";
-import { Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck, Compass, HelpCircle } from "lucide-react";
+import { Star, Video, ArrowRight, Sparkles, Users, Award, ShieldCheck, Compass, HelpCircle, ExternalLink, MessageSquareHeart } from "lucide-react";
 import PricingSection from "../components/PricingSection";
 import HowItWorks from "../components/HowItWorks";
 import { FAQ_DATA } from "../lib/faqData";
@@ -257,6 +257,37 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
             View all questions
             <ArrowRight size={16} className="text-primary group-hover:translate-x-1 transition-transform duration-200" />
           </button>
+        </div>
+      </section>
+
+      {/* Feedback CTA Section (placed between FAQ and Footer) */}
+      <section className="py-12 max-w-4xl mx-auto px-6 mb-16">
+        <div className="glass-card rounded-3xl p-8 sm:p-10 border border-white/10 bg-gradient-to-r from-surface/80 to-surface-container/60 text-center space-y-5 relative overflow-hidden shadow-xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+            <MessageSquareHeart size={14} />
+            <span>Community Feedback</span>
+          </div>
+
+          <div className="space-y-2 max-w-xl mx-auto">
+            <h3 className="text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+              Help Us Get Better
+            </h3>
+            <p className="text-sm sm:text-base text-on-surface-variant leading-relaxed">
+              Every session, every feature, every fix — it all starts with what you tell us. Take two minutes, we read every single response.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <a
+              href="https://docs.google.com/forms/d/e/1FAIpQLSdBPsSL8NW7jvUWrzpD9-BSDsOLNjLKucc9Z5fTUDmUbkl6oA/viewform"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 brand-gradient-bg text-white px-8 py-3.5 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-all duration-300 shadow-lg neon-glow-primary"
+            >
+              <span>Share Your Feedback</span>
+              <ExternalLink size={16} />
+            </a>
+          </div>
         </div>
       </section>
     </div>
