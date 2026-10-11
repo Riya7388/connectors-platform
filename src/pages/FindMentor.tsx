@@ -23,6 +23,8 @@ import {
 } from "../constants/mentorConstants";
 import { FREE_MODE } from "../lib/config";
 
+import { MentorCard } from "../components/MentorCard";
+
 /* -------------------------------------------------
    Types
 ------------------------------------------------- */
@@ -60,6 +62,8 @@ interface Mentor {
   mentor_tag_other?: string | null;
   expertise_other?: string | null;
   goals?: string[] | null;
+  top_achievement?: string | null;
+  journey_tags?: string[] | null;
 }
 
 /* -------------------------------------------------
@@ -1182,207 +1186,11 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
           {!loading && !error && filteredMentors.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredMentors.map((mentor) => (
-                <div
+                <MentorCard
                   key={mentor.id}
+                  mentor={mentor}
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
-                  className="glass-card relative rounded-2xl p-6 border border-white/5 flex flex-col justify-between hover:-translate-y-1 transition-all cursor-pointer group space-y-4"
-                >
-                  {/* 1. Top row: photo (left), online status + name + verified shield */}
-                  <div className="flex items-start gap-4">
-                    <img
-                      src={
-                        mentor.profile_photo_url ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          mentor.full_name || "M"
-                        )}`
-                      }
-                      alt={mentor.full_name}
-                      onError={(e) => {
-                        const target = e.currentTarget as HTMLImageElement;
-                        target.src =
-                          "https://ui-avatars.com/api/?size=128&background=cccccc&color=ffffff&name=" +
-                          encodeURIComponent(mentor.full_name || "M");
-                      }}
-                      className="h-14 w-14 rounded-full border-2 border-primary object-cover flex-shrink-0"
-                    />
-                    <div className="flex flex-col justify-center min-w-0">
-                      {/* Online indicator dot + "Online"/"Last seen" text */}
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        {mentor.is_online ? (
-                          <span className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                            Online
-                          </span>
-                        ) : mentor.last_online_at ? (
-                          <span className="text-[10px] text-on-surface-variant/60">
-                            Last seen {formatLastSeen(mentor.last_online_at)}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {/* Name + verified shield icon */}
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-base font-bold text-on-surface truncate">
-                          {mentor.full_name}
-                        </h4>
-                        {mentor.verified && (
-                          <ShieldCheck
-                            size={16}
-                            className="text-primary fill-primary/10 flex-shrink-0"
-                          />
-                        )}
-                      </div>
-
-                      {/* 2. Subtitle line: {college} • {branch} on one line, Grad {year} (if exists) */}
-                      <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                        {mentor.current_organization ? (
-                          mentor.current_organization
-                        ) : (
-                          `${mentor.college_name || ''}${
-                            mentor.college_name && (mentor.branch || mentor.ca_stage || mentor.upsc_stage || mentor.target_exam || mentor.target_college || mentor.other_exam) ? ' • ' : ''
-                          }${
-                            mentor.exam_category === 'CA' ? mentor.ca_stage :
-                            mentor.exam_category === 'UPSC' ? mentor.upsc_stage :
-                            (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? mentor.target_exam :
-                            mentor.exam_category === 'CUET' ? mentor.target_college :
-                            mentor.exam_category === 'Other' ? mentor.other_exam :
-                            mentor.branch || ''
-                          }`
-                        )}
-                      </p>
-                      {mentor.graduation_year ? (
-                        <p className="text-xs text-primary font-medium mt-0.5">
-                          Grad {mentor.graduation_year}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* 3. Rating line */}
-                  <div className="flex items-center gap-2">
-                    {mentor.rating !== null ? (
-                      <StarRating rating={mentor.rating} />
-                    ) : (
-                      <span className="text-xs text-on-surface-variant/70 italic">New Mentor</span>
-                    )}
-                  </div>
-
-                  {/* 4. Tag row */}
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                      {mentor.current_organization ? (mentor.exam_category || 'Mentor') :
-                       mentor.exam_category === 'CA' ? (mentor.ca_stage || 'CA') :
-                       mentor.exam_category === 'UPSC' ? (mentor.upsc_stage || 'UPSC') :
-                       (mentor.exam_category === 'Banking' || mentor.exam_category === 'Defense') ? (mentor.target_exam || mentor.exam_category) :
-                       mentor.exam_category === 'CUET' ? (mentor.target_college || 'CUET') :
-                       mentor.exam_category === 'Other' ? (mentor.other_exam || 'Other') :
-                       mentor.branch || mentor.exam_category || 'Mentor'}
-                    </span>
-                    {mentor.verified && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                        Verified
-                      </span>
-                    )}
-                    {/* Free Intro badge — hidden in FREE_MODE (every session is free) */}
-                    {!FREE_MODE && mentor.free_intro_session && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                        Free Intro
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 5. Languages row */}
-                  {mentor.languages_known && mentor.languages_known.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <Globe size={13} className="text-on-surface-variant/60 flex-shrink-0" />
-                      <span className="text-xs text-on-surface-variant/80">
-                        {mentor.languages_known.join(", ")}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* 6. Experience line (stat block) */}
-                  {(mentor.experience || mentor.years_of_experience) && (
-                    <div className="bg-surface-container-high/30 rounded-lg p-2 flex flex-col w-fit min-w-[100px] border border-white/5">
-                      <span className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">
-                        Experience
-                      </span>
-                      <span className="text-xs font-bold text-on-surface mt-0.5">
-                        {mentor.experience || mentor.years_of_experience}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* 7. "I can help you with" section */}
-                  {((Array.isArray(mentor.areas_of_expertise) && mentor.areas_of_expertise.length > 0) ||
-                    typeof mentor.areas_of_expertise === 'string' || mentor.expertise_other) && (
-                    <div className="space-y-1.5 pt-1">
-                      <p className="text-xs font-bold text-primary/90 tracking-wide uppercase">
-                        I can help you with
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Array.isArray(mentor.areas_of_expertise) ? (
-                          <>
-                            {mentor.areas_of_expertise.slice(0, 5).map((exp) => (
-                              <span
-                                key={exp}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm"
-                              >
-                                {exp}
-                              </span>
-                            ))}
-                            {mentor.areas_of_expertise.length > 5 && (
-                              <span className="text-xs font-medium px-2 py-1 rounded-lg bg-surface-container-high/60 text-on-surface-variant/80 border border-white/5">
-                                +{mentor.areas_of_expertise.length - 5} more
-                              </span>
-                            )}
-                          </>
-                        ) : typeof mentor.areas_of_expertise === 'string' ? (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm">
-                            {mentor.areas_of_expertise}
-                          </span>
-                        ) : mentor.expertise_other ? (
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/25 shadow-sm">
-                            {mentor.expertise_other}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 8. Bottom row */}
-                  <div className="pt-3 border-t border-outline-variant/10 flex items-end justify-between gap-2 mt-auto">
-                    {FREE_MODE ? (
-                      /* In FREE_MODE: show a gradient "Free" pill instead of price + free-intro badge */
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase brand-gradient-bg text-white shadow-sm">
-                        Free
-                      </span>
-                    ) : (
-                      <div className="space-y-1.5">
-                        <div>
-                          <p className="text-[10px] uppercase font-semibold text-on-surface-variant/70 tracking-wider">Starting at</p>
-                          <p className="text-lg font-extrabold text-on-surface">
-                            {getMinPrice(mentor.pricing) !== null
-                              ? `₹${getMinPrice(mentor.pricing)}`
-                              : "—"}
-                          </p>
-                        </div>
-
-                        {/* Green Free 15-min Intro badge with gift-box icon if free_intro_session is true */}
-                        {mentor.free_intro_session && (
-                          <div className="flex items-center gap-1 bg-green-500/15 text-green-400 text-[11px] font-semibold px-2 py-0.5 rounded-md border border-green-500/25 w-fit">
-                            <Gift size={12} className="flex-shrink-0" />
-                            <span>Free 15-min Intro</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <button className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md group-hover:scale-105">
-                      View Profile
-                    </button>
-                  </div>
-                </div>
+                />
               ))}
             </div>
           )}

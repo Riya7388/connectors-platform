@@ -10,13 +10,40 @@
 }
 
 .kinetic-gradient {
-  background: linear-gradient(135deg, #ff7a00 0%, #6f00be 100%);
+  background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%);
+}
+
+.brand-gradient-bg {
+  background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%);
 }
 
 .brand-gradient-text {
-  background: linear-gradient(135deg, #ffb68b 0%, #ddb7ff 100%);
+  background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Gradient outline box for Top Achievement & Booking Card */
+.gradient-border-box {
+  position: relative;
+  background: #1C1C21;
+}
+.gradient-border-box::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.brand-avatar-ring {
+  padding: 3px;
+  background: linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%);
 }
 
 .glass-card {

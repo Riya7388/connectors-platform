@@ -8,6 +8,7 @@ import {
   Trophy, Plus, Trash2, Target, RotateCcw, X, Sparkles, Check, ChevronDown
 } from "lucide-react";
 import { FileUpload } from "../components/FileUpload";
+import { CustomSelect } from "../components/CustomSelect";
 import { supabase } from "../supabase";
 import { AREAS_OF_EXPERTISE, LANGUAGES } from "../constants/mentorConstants";
 import { FREE_MODE } from "../lib/config";
@@ -24,7 +25,25 @@ declare global {
   }
 }
 
+export const JOURNEY_OPTIONS = [
+  { slug: "first_attempt", label: "Cracked it in my first attempt" },
+  { slug: "after_drop", label: "Cracked it after a drop / repeat" },
+  { slug: "self_study", label: "Self-study (no coaching)" },
+  { slug: "coaching_plus_self", label: "Coaching + self-study" },
+  { slug: "changed_path", label: "Changed my stream / goal" },
+  { slug: "still_preparing", label: "Still preparing (peer mentor)" },
+];
 
+export const AVAILABILITY_OPTIONS = [
+  "Morning (6 AM - 12 PM)",
+  "Afternoon (12 PM - 5 PM)",
+  "Evening (5 PM - 9 PM)",
+  "Night (9 PM - 12 AM)",
+  "Weekdays Evening",
+  "Weekends Anytime",
+  "Flexible / Varies",
+  "Custom"
+];
 
 // --- Schema Definition ---
 const mentorSchema = z.object({
@@ -60,10 +79,14 @@ const mentorSchema = z.object({
   targetExam: z.string().optional(),
   targetCollege: z.string().optional(),
   otherExam: z.string().optional(),
-  currentPrepStage: z.string().optional(),
   examBranch: z.string().optional(),
   examBranchOther: z.string().optional(),
   
+  // New fields for Phase 12
+  topAchievement: z.string().max(80, "Top achievement must be 80 characters or fewer").optional(),
+  helpStatement: z.string().max(300, "Help statement must be 300 characters or fewer").optional(),
+  milestones: z.string().optional(),
+
   // File upload URLs — optional in schema, verified by admin after submission
   govtIdUrl: z.string().url().optional().or(z.literal("")),
   studentIdFrontUrl: z.string().url().optional().or(z.literal("")),
@@ -212,11 +235,16 @@ export const BecomeMentor: React.FC = () => {
   const [otpInput, setOtpInput] = useState("");
   const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [timer, setTimer] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [mockOtpNotice, setMockOtpNotice] = useState<string | null>(null);
 
   // Achievements State (Max 5, 30 words each)
   const [achievements, setAchievements] = useState<string[]>([]);
 
-  // Goals & Targets State (Max 3, 30 words each)
+  // Journey Tags State (Phase 12 replacement for current_prep_stage)
+  const [journeyTags, setJourneyTags] = useState<string[]>([]);
+
+  // Goals & Targets State (retired from form, kept for backward compat)
   const [goals, setGoals] = useState<string[]>([]);
 
   const getWordCount = (text: string) => {
@@ -287,7 +315,9 @@ export const BecomeMentor: React.FC = () => {
       targetExam: "",
       targetCollege: "",
       otherExam: "",
-      currentPrepStage: "",
+      topAchievement: "",
+      helpStatement: "",
+      milestones: "",
       examBranch: "",
       examBranchOther: "",
       govtIdUrl: "",
@@ -310,6 +340,9 @@ export const BecomeMentor: React.FC = () => {
       customAvailability: ""
     }
   });
+
+  const watchTopAchievement = watch("topAchievement") || "";
+  const watchHelpStatement = watch("helpStatement") || "";
 
   const [draftRestored, setDraftRestored] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -355,8 +388,8 @@ export const BecomeMentor: React.FC = () => {
             if (Array.isArray(mentorDb.achievements)) {
               setAchievements(mentorDb.achievements);
             }
-            if (Array.isArray(mentorDb.goals)) {
-              setGoals(mentorDb.goals);
+            if (Array.isArray(mentorDb.journey_tags)) {
+              setJourneyTags(mentorDb.journey_tags);
             }
             if (mentorDb.phone_number) {
               setPhoneVerified(true);
@@ -389,7 +422,9 @@ export const BecomeMentor: React.FC = () => {
               targetExam: mentorDb.target_exam || "",
               targetCollege: mentorDb.target_college || "",
               otherExam: mentorDb.other_exam || "",
-              currentPrepStage: mentorDb.current_prep_stage || "",
+              topAchievement: mentorDb.top_achievement || "",
+              helpStatement: mentorDb.help_statement || "",
+              milestones: mentorDb.milestones || "",
               examBranch: mentorDb.exam_branch || "",
               examBranchOther: mentorDb.exam_branch_other || "",
               govtIdUrl: mentorDb.govt_id_url || "",
@@ -428,6 +463,7 @@ export const BecomeMentor: React.FC = () => {
                 studentIdFrontUrl: _sf,
                 studentIdBackUrl: _sb,
                 achievements: savedAchievements,
+                journeyTags: savedJourneyTags,
                 goals: savedGoals,
                 lastSaved: _ls,
                 ...restFields
@@ -450,7 +486,7 @@ export const BecomeMentor: React.FC = () => {
                 if (Array.isArray(v)) return v.length > 0;
                 if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
                 return typeof v === 'string' && v.trim().length > 0;
-              }) || (Array.isArray(savedAchievements) && savedAchievements.length > 0) || (Array.isArray(savedGoals) && savedGoals.length > 0);
+              }) || (Array.isArray(savedAchievements) && savedAchievements.length > 0) || (Array.isArray(savedJourneyTags) && savedJourneyTags.length > 0);
 
               if (hasSavedData) {
                 reset({
@@ -468,8 +504,8 @@ export const BecomeMentor: React.FC = () => {
                 if (Array.isArray(savedAchievements)) {
                   setAchievements(savedAchievements);
                 }
-                if (Array.isArray(savedGoals)) {
-                  setGoals(savedGoals);
+                if (Array.isArray(savedJourneyTags)) {
+                  setJourneyTags(savedJourneyTags);
                 }
 
                 setDraftRestored(true);
@@ -518,9 +554,9 @@ export const BecomeMentor: React.FC = () => {
         institutionOther: allFormValues.institutionOther || "",
         courseType: allFormValues.courseType || "",
         targetExam: allFormValues.targetExam || "",
-        targetCollege: allFormValues.targetCollege || "",
-        otherExam: allFormValues.otherExam || "",
-        currentPrepStage: allFormValues.currentPrepStage || "",
+        topAchievement: allFormValues.topAchievement || "",
+        helpStatement: allFormValues.helpStatement || "",
+        milestones: allFormValues.milestones || "",
         examBranch: allFormValues.examBranch || "",
         examBranchOther: allFormValues.examBranchOther || "",
         linkedinUrl: allFormValues.linkedinUrl || "",
@@ -541,7 +577,7 @@ export const BecomeMentor: React.FC = () => {
         customAvailability: allFormValues.customAvailability || "",
         bio: allFormValues.bio || "",
         achievements,
-        goals,
+        journeyTags,
         lastSaved: new Date().toISOString()
       };
 
@@ -562,53 +598,54 @@ export const BecomeMentor: React.FC = () => {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [allFormValues, achievements, goals, isInitialized]);
+  }, [allFormValues, achievements, journeyTags, isInitialized]);
 
   const handleClearDraft = () => {
-    if (window.confirm("Are you sure you want to clear your saved draft and start over?")) {
-      try {
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-      } catch (e) {
-        console.warn("Failed to remove draft from localStorage:", e);
-      }
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (e) {
+      console.warn("Failed to remove draft from localStorage:", e);
+    }
 
-      reset({
-        fullName: "",
-        profilePhotoUrl: "",
-        dob: "",
-        gender: "",
-        phone: "",
-        personalEmail: "",
-        city: "",
-        whatsapp: "",
-        examCategory: "",
-        currentOrganization: "",
-        yearsOfExperience: "",
-        college: "",
-        branch: "",
-        degreeType: "",
-        admissionYear: "",
-        gradYear: "",
-        currentSemester: "",
-        caStage: "",
-        upscStage: "",
-        upscOptionalSubject: "",
-        targetAttemptYear: "",
-        institutionOther: "",
-        courseType: "",
-        targetExam: "",
-        targetCollege: "",
-        otherExam: "",
-        currentPrepStage: "",
-        examBranch: "",
-        examBranchOther: "",
-        govtIdUrl: "",
-        studentIdFrontUrl: "",
-        studentIdBackUrl: "",
-        linkedinUrl: "",
-        languages: [],
-        areasOfExpertise: [],
-        expertiseOther: "",
+    reset({
+      fullName: "",
+      profilePhotoUrl: "",
+      dob: "",
+      gender: "",
+      phone: "",
+      personalEmail: "",
+      city: "",
+      whatsapp: "",
+      examCategory: "",
+      currentOrganization: "",
+      yearsOfExperience: "",
+      college: "",
+      branch: "",
+      degreeType: "",
+      admissionYear: "",
+      gradYear: "",
+      currentSemester: "",
+      caStage: "",
+      upscStage: "",
+      upscOptionalSubject: "",
+      targetAttemptYear: "",
+      institutionOther: "",
+      courseType: "",
+      targetExam: "",
+      targetCollege: "",
+      otherExam: "",
+      topAchievement: "",
+      helpStatement: "",
+      milestones: "",
+      examBranch: "",
+      examBranchOther: "",
+      govtIdUrl: "",
+      studentIdFrontUrl: "",
+      studentIdBackUrl: "",
+      linkedinUrl: "",
+      languages: [],
+      areasOfExpertise: [],
+      expertiseOther: "",
         sessionDurations: FREE_MODE ? ["15 min", "30 min"] : [],
         prices: {},
         freeIntro: true,
@@ -622,14 +659,14 @@ export const BecomeMentor: React.FC = () => {
         bio: ""
       });
 
-      setAchievements([]);
-      setGoals([]);
-      setAchievementProofs([""]);
-      setPhoneVerified(false);
-      setOtpSent(false);
-      setOtpInput("");
-      setDraftRestored(false);
-    }
+    setAchievements([]);
+    setGoals([]);
+    setJourneyTags([]);
+    setAchievementProofs([""]);
+    setPhoneVerified(false);
+    setOtpSent(false);
+    setOtpInput("");
+    setDraftRestored(false);
   };
 
   const handleAddAchievementProof = () => {
@@ -743,9 +780,13 @@ export const BecomeMentor: React.FC = () => {
   }, [timer]);
 
   const sendOtp = async () => {
-    if (!watchPhone || watchPhone.length < 10) return alert("Enter a valid phone number first.");
+    if (!watchPhone || watchPhone.length < 10) {
+      setSubmitError("Please enter a valid 10-digit phone number first.");
+      return;
+    }
+    setSubmitError(null);
     if (!auth.app.options.apiKey) {
-      alert("[Mock Mode] Firebase keys missing. OTP sent to " + watchPhone + ". Use 123456 to verify.");
+      setMockOtpNotice(`[Mock Mode] Firebase keys missing. OTP sent to ${watchPhone}. Use code 123456 to verify.`);
       setOtpSent(true);
       setTimer(60);
       return;
@@ -758,17 +799,19 @@ export const BecomeMentor: React.FC = () => {
       setTimer(60);
     } catch (error) {
       console.error(error);
-      alert("Failed to send OTP. Check console.");
+      setSubmitError("Failed to send OTP. Please check your connection and try again.");
     }
   };
 
   const verifyOtp = async () => {
+    setSubmitError(null);
     if (!auth.app.options.apiKey) {
       if (otpInput === "123456") {
         setPhoneVerified(true);
         setOtpSent(false);
+        setMockOtpNotice(null);
       } else {
-        alert("Invalid mock OTP.");
+        setSubmitError("Invalid mock OTP code. Please enter 123456.");
       }
       return;
     }
@@ -776,8 +819,9 @@ export const BecomeMentor: React.FC = () => {
       await confirmationResult.confirm(otpInput);
       setPhoneVerified(true);
       setOtpSent(false);
+      setMockOtpNotice(null);
     } catch (error) {
-      alert("Invalid OTP");
+      setSubmitError("Invalid OTP code. Please verify and try again.");
     }
   };
 
@@ -796,14 +840,7 @@ export const BecomeMentor: React.FC = () => {
     // Validate and clean achievements (max 30 words each)
     const cleanedAchievements = achievements.map((a) => a.trim()).filter((a) => a.length > 0);
     if (cleanedAchievements.some((a) => getWordCount(a) > 30)) {
-      alert("Each achievement must be 30 words or less. Please review and try again.");
-      return;
-    }
-
-    // Validate and clean goals (max 30 words each)
-    const cleanedGoals = goals.map((g) => g.trim()).filter((g) => g.length > 0);
-    if (cleanedGoals.some((g) => getWordCount(g) > 30)) {
-      alert("Each goal must be 30 words or less. Please review and try again.");
+      setSubmitError("Each achievement must be 30 words or less. Please review and try again.");
       return;
     }
 
@@ -814,12 +851,13 @@ export const BecomeMentor: React.FC = () => {
       .filter((item) => item.length > 0);
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const user = sessionData?.session?.user;
       
       if (!user) {
-        alert("Authentication error: You must be logged in to submit an application.");
+        setSubmitError("Authentication error: You must be logged in to submit an application.");
         setIsSubmitting(false);
         return;
       }
@@ -831,7 +869,7 @@ export const BecomeMentor: React.FC = () => {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      const mentorPayload = {
+      const mentorPayload: any = {
         user_id: user.id,
         full_name: data.fullName,
         profile_photo_url: data.profilePhotoUrl,
@@ -849,7 +887,6 @@ export const BecomeMentor: React.FC = () => {
         upsc_optional_subject: data.upscOptionalSubject,
         target_attempt_year: data.targetAttemptYear ? parseInt(data.targetAttemptYear) : null,
         institution_other: data.institutionOther,
-        current_prep_stage: data.currentPrepStage,
         exam_branch: data.examBranch || "",
         exam_branch_other: data.examBranchOther || "",
         course_type: data.courseType,
@@ -862,6 +899,10 @@ export const BecomeMentor: React.FC = () => {
         year_of_admission: data.admissionYear ? parseInt(data.admissionYear) : null,
         graduation_year: data.gradYear ? parseInt(data.gradYear) : null,
         current_semester: data.currentSemester || "",
+        top_achievement: data.topAchievement ? data.topAchievement.trim() : null,
+        journey_tags: journeyTags.length > 0 ? journeyTags : null,
+        help_statement: data.helpStatement ? data.helpStatement.trim() : null,
+        milestones: data.milestones ? data.milestones.trim() : null,
         govt_id_url: proofUrlString,
         student_id_front_url: data.studentIdFrontUrl,
         student_id_back_url: data.studentIdBackUrl,
@@ -882,7 +923,6 @@ export const BecomeMentor: React.FC = () => {
         bio: data.bio,
         availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
         achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
-        goals: cleanedGoals.length > 0 ? cleanedGoals : null,
         application_status: existingMentor?.application_status || 'pending'
       };
 
@@ -902,7 +942,7 @@ export const BecomeMentor: React.FC = () => {
 
       if (saveError) {
         console.error("Failed to submit/update application:", saveError);
-        alert("Something went wrong saving your application — please try again.");
+        setSubmitError("Something went wrong saving your application — please try again.");
         return;
       }
       
@@ -916,7 +956,7 @@ export const BecomeMentor: React.FC = () => {
       setFormSubmitted(true);
     } catch (e) {
       console.error(e);
-      alert("An error occurred. Check console.");
+      setSubmitError("An error occurred while saving your application. Please check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1090,6 +1130,12 @@ export const BecomeMentor: React.FC = () => {
                           <button type="button" disabled={timer > 0} onClick={sendOtp} className="px-3 py-2 text-xs text-primary disabled:opacity-50">{timer > 0 ? `Resend in ${timer}s` : 'Resend'}</button>
                         </div>
                       )}
+
+                      {mockOtpNotice && !phoneVerified && (
+                        <div className="p-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary font-medium mt-2 animate-fade-in">
+                          {mockOtpNotice}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -1115,13 +1161,16 @@ export const BecomeMentor: React.FC = () => {
 
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Gender</label>
-                      <select {...register("gender")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface">
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                        <option value="Prefer not to say">Prefer not to say</option>
-                      </select>
+                      <CustomSelect
+                        value={watch("gender")}
+                        onChange={(val) => {
+                          setValue("gender", val);
+                          trigger("gender");
+                        }}
+                        options={["Male", "Female", "Other", "Prefer not to say"]}
+                        placeholder="Select Gender"
+                        error={errors.gender?.message}
+                      />
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
@@ -1151,29 +1200,93 @@ export const BecomeMentor: React.FC = () => {
                         />
                       )}
                     />
+                    <p className="text-xs text-[#FF9D2E] font-medium mt-1">
+                      Profiles with a real photo get far more connection requests
+                    </p>
                     <p className="text-[11px] text-on-surface-variant/70 italic">
                       Note: Uploaded files aren't saved in drafts — please re-upload if you return to a saved draft.
                     </p>
                   </div>
 
+                  {/* 1. "Your journey" (Relabelled Bio) */}
                   <div className="space-y-2 mt-6">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex justify-between">
-                      <span>Bio / About You</span>
+                      <span>Your journey</span>
                       <span className={watchBio.length < 50 || watchBio.length > 1000 ? "text-red-500" : "text-primary"}>
                         {watchBio.length} / 1000
                       </span>
                     </label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1 mb-1">
+                      Where you started, any setback you faced, and how you got through it. 100 to 150 words is plenty.
+                    </p>
                     <textarea 
                       {...register("bio")} 
                       className={`w-full bg-surface-container-low/50 border ${errors.bio ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none min-h-[120px] custom-scrollbar`} 
-                      placeholder="Tell students about yourself — your journey, what you can help with, and why they should connect with you."
+                      placeholder="Where you started, any setback you faced, and how you got through it. 100 to 150 words is plenty."
                     ></textarea>
                     {errors.bio && <p className="text-xs text-red-500">{errors.bio.message}</p>}
                   </div>
 
+                  {/* 2. "In my words" (help_statement) */}
+                  <div className="space-y-2 mt-5">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex justify-between">
+                      <span>If a student asks how you can help, what would you tell them?</span>
+                      <span className={watchHelpStatement.length > 300 ? "text-red-500" : "text-on-surface-variant/70"}>
+                        {watchHelpStatement.length} / 300
+                      </span>
+                    </label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1 mb-1">
+                      Example: I can help you build a mock-test analysis routine and manage time, especially if your first attempt did not go the way you wanted.
+                    </p>
+                    <textarea
+                      {...register("helpStatement")}
+                      maxLength={300}
+                      className={`w-full bg-surface-container-low/50 border ${errors.helpStatement ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none min-h-[80px] custom-scrollbar`}
+                      placeholder="I can help you build a mock-test analysis routine and manage time, especially if your first attempt did not go the way you wanted."
+                    ></textarea>
+                    {errors.helpStatement && <p className="text-xs text-red-500">{errors.helpStatement.message}</p>}
+                  </div>
 
+                  {/* 3. Career milestones */}
+                  <div className="space-y-2 mt-5">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                      Career milestones (one per line: year, then what happened)
+                    </label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1 mb-1">
+                      Example: 2025: NEET AIR 340, admitted to AIIMS Delhi
+                    </p>
+                    <textarea
+                      {...register("milestones")}
+                      className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none min-h-[80px] custom-scrollbar"
+                      placeholder={"2021: Started prep from scratch\n2023: Cleared exam with AIR 340\n2025: Admitted to AIIMS Delhi"}
+                    ></textarea>
+                  </div>
 
-                  {/* Achievements Section */}
+                  {/* 4. "Your top achievement" (Single-line, max 80 chars, live counter) */}
+                  <div className="space-y-2 mt-6 pt-6 border-t border-outline-variant/20">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex justify-between">
+                      <span className="flex items-center gap-1.5 text-white">
+                        <Trophy size={14} className="text-[#FF9D2E]" />
+                        Your top achievement
+                      </span>
+                      <span className={watchTopAchievement.length > 80 ? "text-red-500" : "text-on-surface-variant/70"}>
+                        {watchTopAchievement.length} / 80
+                      </span>
+                    </label>
+                    <p className="text-xs text-on-surface-variant/70 -mt-1 mb-1">
+                      Your biggest achievement, in one line, that you want to show in your profile. Example: NEET AIR 340 (2025).
+                    </p>
+                    <input
+                      type="text"
+                      maxLength={80}
+                      {...register("topAchievement")}
+                      className={`w-full bg-surface-container-low/50 border ${errors.topAchievement ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-white`}
+                      placeholder="e.g. NEET AIR 340 (2025)"
+                    />
+                    {errors.topAchievement && <p className="text-xs text-red-500">{errors.topAchievement.message}</p>}
+                  </div>
+
+                  {/* 5. Key Achievements (Optional, Max 5) */}
                   <div className="space-y-3 mt-6 pt-6 border-t border-outline-variant/10">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
@@ -1235,69 +1348,6 @@ export const BecomeMentor: React.FC = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* My Goals & Targets Section */}
-                  <div className="space-y-3 mt-6 pt-6 border-t border-outline-variant/10">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                          <Target size={14} className="text-primary" />
-                          My Goals & Targets (Optional, Max 3)
-                        </label>
-                        <p className="text-xs text-on-surface-variant/70 mt-0.5">
-                          What are you currently working towards? Add up to 3 goals.
-                        </p>
-                      </div>
-                      {goals.length < 3 && (
-                        <button
-                          type="button"
-                          onClick={handleAddGoal}
-                          className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors shrink-0 w-fit"
-                        >
-                          <Plus size={14} /> Add Goal
-                        </button>
-                      )}
-                    </div>
-
-                    {goals.length > 0 && (
-                      <div className="space-y-3 mt-2">
-                        {goals.map((goal, idx) => {
-                          const words = getWordCount(goal);
-                          const isOverLimit = words > 30;
-                          return (
-                            <div key={idx} className="bg-surface-container-low/30 p-3.5 rounded-xl border border-outline-variant/20 space-y-2 animate-fade-in">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="font-semibold text-on-surface">Goal #{idx + 1}</span>
-                                <div className="flex items-center gap-3">
-                                  <span className={isOverLimit ? "text-red-500 font-bold" : "text-on-surface-variant/70 font-medium"}>
-                                    {words} / 30 words
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveGoal(idx)}
-                                    className="text-on-surface-variant/50 hover:text-red-400 p-1 rounded transition-colors"
-                                    title="Remove goal"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                              <input
-                                type="text"
-                                value={goal}
-                                onChange={(e) => handleGoalChange(idx, e.target.value)}
-                                className={`w-full bg-surface-container-low/60 border ${isOverLimit ? 'border-red-500' : 'border-outline-variant/30'} px-3.5 py-2.5 rounded-lg text-sm focus:border-primary focus:ring-1 outline-none`}
-                                placeholder="e.g. Preparing for CAT 2024 / Building an AI SaaS / Cracking Google SWE"
-                              />
-                              {isOverLimit && (
-                                <p className="text-[11px] text-red-500 font-medium">Please keep this goal under 30 words (currently {words} words).</p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* --- B. Current Role / Profession --- */}
@@ -1307,11 +1357,16 @@ export const BecomeMentor: React.FC = () => {
                     {/* 1. EXAM CATEGORY */}
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">In which field will you mentor</label>
-                      <select {...register("examCategory")} className={`w-full bg-surface-container-low/50 border ${errors.examCategory ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                        <option value="">Select Category</option>
-                        {EXAM_CATEGORIES.map(e => <option key={e} value={e}>{e}</option>)}
-                      </select>
-                      {errors.examCategory && <p className="text-xs text-red-500">{errors.examCategory.message}</p>}
+                      <CustomSelect
+                        options={EXAM_CATEGORIES}
+                        value={watchExamCategory || ""}
+                        placeholder="Select Category"
+                        error={errors.examCategory?.message}
+                        onChange={(val) => {
+                          setValue("examCategory", val, { shouldValidate: true });
+                          trigger("examCategory");
+                        }}
+                      />
                     </div>
 
                     {/* 2. CONDITIONAL FIELDS BASED ON EXAM CATEGORY */}
@@ -1331,16 +1386,16 @@ export const BecomeMentor: React.FC = () => {
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Experience</label>
-                          <select
-                            {...register("yearsOfExperience")}
-                            className={`w-full bg-surface-container-low/50 border ${errors.yearsOfExperience ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}
-                          >
-                            <option value="">Select Experience</option>
-                            {EXPERIENCE_OPTIONS.map(exp => (
-                              <option key={exp} value={exp}>{exp}</option>
-                            ))}
-                          </select>
-                          {errors.yearsOfExperience && <p className="text-xs text-red-500">{errors.yearsOfExperience.message}</p>}
+                          <CustomSelect
+                            options={EXPERIENCE_OPTIONS}
+                            value={watch("yearsOfExperience") || ""}
+                            placeholder="Select Experience"
+                            error={errors.yearsOfExperience?.message}
+                            onChange={(val) => {
+                              setValue("yearsOfExperience", val, { shouldValidate: true });
+                              trigger("yearsOfExperience");
+                            }}
+                          />
                         </div>
                       </>
                     )}
@@ -1426,11 +1481,16 @@ export const BecomeMentor: React.FC = () => {
 
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Degree Type</label>
-                          <select {...register("degreeType")} className={`w-full bg-surface-container-low/50 border ${errors.degreeType ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Degree</option>
-                            {DEGREE_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                          {errors.degreeType && <p className="text-xs text-red-500">{errors.degreeType.message}</p>}
+                          <CustomSelect
+                            options={DEGREE_TYPES}
+                            value={watch("degreeType") || ""}
+                            placeholder="Select Degree"
+                            error={errors.degreeType?.message}
+                            onChange={(val) => {
+                              setValue("degreeType", val, { shouldValidate: true });
+                              trigger("degreeType");
+                            }}
+                          />
                         </div>
 
                         <div className="space-y-2 relative">
@@ -1493,31 +1553,48 @@ export const BecomeMentor: React.FC = () => {
 
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Admission Year</label>
-                          <select {...register("admissionYear")} className={`w-full bg-surface-container-low/50 border ${errors.admissionYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Year</option>
-                            {Array.from({length: 10}, (_, i) => currentYear - i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-                          </select>
-                          {errors.admissionYear && <p className="text-xs text-red-500">{errors.admissionYear.message}</p>}
+                          <CustomSelect
+                            options={Array.from({length: 10}, (_, i) => String(currentYear - i))}
+                            value={watch("admissionYear") || ""}
+                            placeholder="Select Year"
+                            error={errors.admissionYear?.message}
+                            onChange={(val) => {
+                              setValue("admissionYear", val, { shouldValidate: true });
+                              trigger("admissionYear");
+                            }}
+                          />
                         </div>
 
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Graduation Year</label>
-                          <select {...register("gradYear")} className={`w-full bg-surface-container-low/50 border ${errors.gradYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Year</option>
-                            {Array.from({length: 10}, (_, i) => currentYear - 3 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-                          </select>
-                          {errors.gradYear && <p className="text-xs text-red-500">{errors.gradYear.message}</p>}
+                          <CustomSelect
+                            options={Array.from({length: 10}, (_, i) => String(currentYear - 3 + i))}
+                            value={watch("gradYear") || ""}
+                            placeholder="Select Year"
+                            error={errors.gradYear?.message}
+                            onChange={(val) => {
+                              setValue("gradYear", val, { shouldValidate: true });
+                              trigger("gradYear");
+                            }}
+                          />
                         </div>
 
                         {watchGradYear && parseInt(watchGradYear) >= currentYear && (
                           <div className="space-y-2">
                             <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Semester</label>
-                            <select {...register("currentSemester")} className={`w-full bg-surface-container-low/50 border ${errors.currentSemester ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                              <option value="">Select Semester</option>
-                              {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s.toString()}>Semester {s}</option>)}
-                              <option value="Graduated">Graduated</option>
-                            </select>
-                            {errors.currentSemester && <p className="text-xs text-red-500">{errors.currentSemester.message}</p>}
+                            <CustomSelect
+                              options={[
+                                ...[1,2,3,4,5,6,7,8].map(s => ({ value: String(s), label: `Semester ${s}` })),
+                                { value: "Graduated", label: "Graduated" }
+                              ]}
+                              value={watch("currentSemester") || ""}
+                              placeholder="Select Semester"
+                              error={errors.currentSemester?.message}
+                              onChange={(val) => {
+                                setValue("currentSemester", val, { shouldValidate: true });
+                                trigger("currentSemester");
+                              }}
+                            />
                           </div>
                         )}
                       </>
@@ -1604,19 +1681,29 @@ export const BecomeMentor: React.FC = () => {
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Course Type</label>
-                          <select {...register("courseType")} className={`w-full bg-surface-container-low/50 border ${errors.courseType ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Course</option>
-                            {NEET_COURSES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          {errors.courseType && <p className="text-xs text-red-500">{errors.courseType.message}</p>}
+                          <CustomSelect
+                            options={NEET_COURSES}
+                            value={watch("courseType") || ""}
+                            placeholder="Select Course"
+                            error={errors.courseType?.message}
+                            onChange={(val) => {
+                              setValue("courseType", val, { shouldValidate: true });
+                              trigger("courseType");
+                            }}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Graduation Year</label>
-                          <select {...register("gradYear")} className={`w-full bg-surface-container-low/50 border ${errors.gradYear ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Year</option>
-                            {Array.from({length: 10}, (_, i) => currentYear - 3 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-                          </select>
-                          {errors.gradYear && <p className="text-xs text-red-500">{errors.gradYear.message}</p>}
+                          <CustomSelect
+                            options={Array.from({length: 10}, (_, i) => String(currentYear - 3 + i))}
+                            value={watch("gradYear") || ""}
+                            placeholder="Select Year"
+                            error={errors.gradYear?.message}
+                            onChange={(val) => {
+                              setValue("gradYear", val, { shouldValidate: true });
+                              trigger("gradYear");
+                            }}
+                          />
                         </div>
                       </>
                     )}
@@ -1626,11 +1713,16 @@ export const BecomeMentor: React.FC = () => {
                       <>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">CA Stage</label>
-                          <select {...register("caStage")} className={`w-full bg-surface-container-low/50 border ${errors.caStage ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Stage</option>
-                            {CA_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          {errors.caStage && <p className="text-xs text-red-500">{errors.caStage.message}</p>}
+                          <CustomSelect
+                            options={CA_STAGES}
+                            value={watch("caStage") || ""}
+                            placeholder="Select Stage"
+                            error={errors.caStage?.message}
+                            onChange={(val) => {
+                              setValue("caStage", val, { shouldValidate: true });
+                              trigger("caStage");
+                            }}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
@@ -1730,11 +1822,16 @@ export const BecomeMentor: React.FC = () => {
                       <>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">UPSC Stage</label>
-                          <select {...register("upscStage")} className={`w-full bg-surface-container-low/50 border ${errors.upscStage ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Stage</option>
-                            {UPSC_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                          {errors.upscStage && <p className="text-xs text-red-500">{errors.upscStage.message}</p>}
+                          <CustomSelect
+                            options={UPSC_STAGES}
+                            value={watch("upscStage") || ""}
+                            placeholder="Select Stage"
+                            error={errors.upscStage?.message}
+                            onChange={(val) => {
+                              setValue("upscStage", val, { shouldValidate: true });
+                              trigger("upscStage");
+                            }}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Optional Subject (Optional)</label>
@@ -1752,11 +1849,16 @@ export const BecomeMentor: React.FC = () => {
                       <>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Exam</label>
-                          <select {...register("targetExam")} className={`w-full bg-surface-container-low/50 border ${errors.targetExam ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface`}>
-                            <option value="">Select Exam</option>
-                            {(watchExamCategory === "Banking" ? BANKING_EXAMS : DEFENSE_EXAMS).map(e => <option key={e} value={e}>{e}</option>)}
-                          </select>
-                          {errors.targetExam && <p className="text-xs text-red-500">{errors.targetExam.message}</p>}
+                          <CustomSelect
+                            options={watchExamCategory === "Banking" ? BANKING_EXAMS : DEFENSE_EXAMS}
+                            value={watch("targetExam") || ""}
+                            placeholder="Select Exam"
+                            error={errors.targetExam?.message}
+                            onChange={(val) => {
+                              setValue("targetExam", val, { shouldValidate: true });
+                              trigger("targetExam");
+                            }}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
@@ -1875,13 +1977,40 @@ export const BecomeMentor: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Universal Field at the end of Section B */}
-                    <div className="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-outline-variant/20">
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Preparation Stage</label>
-                      <select {...register("currentPrepStage")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface">
-                        <option value="">Select Stage (Optional)</option>
-                        {PREP_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                    {/* Universal Field at the end of Section B: Your journey multi-select chips */}
+                    <div className="space-y-3 md:col-span-2 mt-4 pt-4 border-t border-outline-variant/20">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Your journey</label>
+                        <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                          Select any that apply to your story — helps mentees relate to you
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {JOURNEY_OPTIONS.map((opt) => {
+                          const selected = journeyTags.includes(opt.slug);
+                          return (
+                            <button
+                              key={opt.slug}
+                              type="button"
+                              onClick={() => {
+                                if (selected) {
+                                  setJourneyTags(journeyTags.filter((s) => s !== opt.slug));
+                                } else {
+                                  setJourneyTags([...journeyTags, opt.slug]);
+                                }
+                              }}
+                              className={`px-3.5 py-2 rounded-full text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                                selected
+                                  ? "bg-[#C4A0FF]/15 text-[#C4A0FF] border-[#C4A0FF]/40 shadow-sm"
+                                  : "bg-surface-container-low/40 text-on-surface-variant border-outline-variant/20 hover:border-outline-variant/50 hover:text-on-surface"
+                              }`}
+                            >
+                              {selected && <Check size={13} className="text-[#C4A0FF]" />}
+                              <span>{opt.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                   </div>
@@ -2196,17 +2325,16 @@ export const BecomeMentor: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">When are you usually free?</label>
                     <p className="text-xs text-on-surface-variant/70 -mt-1">Help students know the best time to reach you</p>
-                    <select {...register("availabilityTime")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none text-on-surface">
-                      <option value="">Select Availability (Optional)</option>
-                      <option value="Morning (6 AM - 12 PM)">Morning (6 AM - 12 PM)</option>
-                      <option value="Afternoon (12 PM - 5 PM)">Afternoon (12 PM - 5 PM)</option>
-                      <option value="Evening (5 PM - 9 PM)">Evening (5 PM - 9 PM)</option>
-                      <option value="Night (9 PM - 12 AM)">Night (9 PM - 12 AM)</option>
-                      <option value="Weekdays Evening">Weekdays Evening</option>
-                      <option value="Weekends Anytime">Weekends Anytime</option>
-                      <option value="Flexible / Varies">Flexible / Varies</option>
-                      <option value="Custom">Custom</option>
-                    </select>
+                    <CustomSelect
+                      options={AVAILABILITY_OPTIONS}
+                      value={watchAvailabilityTime || ""}
+                      placeholder="Select Availability (Optional)"
+                      error={errors.availabilityTime?.message}
+                      onChange={(val) => {
+                        setValue("availabilityTime", val);
+                        trigger("availabilityTime");
+                      }}
+                    />
                     {watchAvailabilityTime === "Custom" && (
                       <input {...register("customAvailability")} className="mt-2 w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="Describe your schedule, e.g. Mon/Wed 7-9 PM" />
                     )}
@@ -2265,6 +2393,13 @@ export const BecomeMentor: React.FC = () => {
                   {phoneWarning && !phoneVerified && (
                     <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-400 font-medium">
                       ⚠️ Please verify your phone number before submitting — click "Verify" next to the phone field above.
+                    </div>
+                  )}
+
+                  {/* Submission error message */}
+                  {submitError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400 font-medium">
+                      ⚠️ {submitError}
                     </div>
                   )}
 

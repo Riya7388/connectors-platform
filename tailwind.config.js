@@ -74,7 +74,9 @@ export default {
         "margin-desktop": "64px"
       },
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "sans-serif"]
+        sans: ["Inter", "Plus Jakarta Sans", "sans-serif"],
+        poppins: ["Poppins", "sans-serif"],
+        inter: ["Inter", "sans-serif"]
       }
     },
   },
