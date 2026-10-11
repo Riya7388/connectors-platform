@@ -19,6 +19,7 @@ import type {
   SuggestionStatus
 } from "../types/polls";
 import { FileUpload } from "../components/FileUpload";
+import { getSignedUrl } from "../lib/storage";
 import { 
   Plus, 
   Edit3, 
@@ -155,8 +156,14 @@ const initialPollFormData: PollFormData = {
 };
 
 export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
-  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls">("sessions");
+  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls" | "recently-edited">("sessions");
   
+  // Recently Edited Mentors State
+  const [recentlyEditedMentors, setRecentlyEditedMentors] = useState<any[]>([]);
+  const [recentlyEditedLoading, setRecentlyEditedLoading] = useState(false);
+  const [selectedEditedMentor, setSelectedEditedMentor] = useState<any | null>(null);
+  const [mentorProofSignedUrls, setMentorProofSignedUrls] = useState<Record<string, string>>({});
+
   // Speakers State
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [speakersLoading, setSpeakersLoading] = useState(true);
@@ -210,12 +217,59 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
       fetchRegistrations();
       fetchPolls();
       fetchSuggestions();
+      fetchRecentlyEditedMentors();
     }
   }, [isAdmin]);
 
   // ---------------------------------------------------------------------------
   // Data Fetching
   // ---------------------------------------------------------------------------
+  const fetchRecentlyEditedMentors = async () => {
+    setRecentlyEditedLoading(true);
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("mentors")
+        .select("*")
+        .not("profile_updated_at", "is", null)
+        .gte("profile_updated_at", thirtyDaysAgo)
+        .order("profile_updated_at", { ascending: false });
+
+      if (error) throw error;
+      setRecentlyEditedMentors(data || []);
+    } catch (err: any) {
+      console.error("Error fetching recently edited mentors:", err);
+      setErrorMsg("Failed to load recently edited profiles.");
+    } finally {
+      setRecentlyEditedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedEditedMentor && Array.isArray(selectedEditedMentor.achievement_proof_urls) && selectedEditedMentor.achievement_proof_urls.length > 0) {
+      let isMounted = true;
+      const loadSignedUrls = async () => {
+        const urls: Record<string, string> = {};
+        for (const proofUrl of selectedEditedMentor.achievement_proof_urls) {
+          if (proofUrl) {
+            const signed = await getSignedUrl("achievement-proofs", proofUrl, 3600);
+            if (signed) {
+              urls[proofUrl] = signed;
+            }
+          }
+        }
+        if (isMounted) {
+          setMentorProofSignedUrls(urls);
+        }
+      };
+      loadSignedUrls();
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setMentorProofSignedUrls({});
+    }
+  }, [selectedEditedMentor]);
   const fetchSpeakers = async () => {
     setSpeakersLoading(true);
     try {
@@ -1004,6 +1058,16 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               >
                 <BarChart2 size={14} /> Polls & Ideas ({polls.length})
               </button>
+              <button
+                onClick={() => setAdminSection("recently-edited")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "recently-edited"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <Edit3 size={14} /> Recently Edited Profiles ({recentlyEditedMentors.length})
+              </button>
             </div>
 
             {adminSection === "sessions" ? (
@@ -1052,6 +1116,15 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                   </button>
                 )}
               </div>
+            ) : adminSection === "recently-edited" ? (
+              <button
+                onClick={fetchRecentlyEditedMentors}
+                disabled={recentlyEditedLoading}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] hover:bg-[#25252b] disabled:opacity-50 cursor-pointer"
+              >
+                <Clock size={16} />
+                Refresh
+              </button>
             ) : (
               <button
                 onClick={handleExportCSV}
@@ -1951,6 +2024,301 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* RECENTLY EDITED PROFILES SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "recently-edited" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="text-lg font-bold text-white">Recently Edited Profiles</h3>
+                <p className="text-xs text-[#A1A1AA] mt-0.5">
+                  Mentors who updated their profiles within the last 30 days.
+                </p>
+              </div>
+              <span className="text-xs text-[#71717A] bg-[#141417] px-3 py-1.5 rounded-lg border border-[rgba(255,255,255,0.06)]">
+                {recentlyEditedMentors.length} {recentlyEditedMentors.length === 1 ? "profile" : "profiles"} found
+              </span>
+            </div>
+
+            {recentlyEditedLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl">
+                <Loader2 className="animate-spin text-[#A855F7] mb-3" size={32} />
+                <p className="text-sm text-[#A1A1AA]">Loading edited profiles...</p>
+              </div>
+            ) : recentlyEditedMentors.length === 0 ? (
+              <div className="text-center py-16 bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl p-6">
+                <div className="w-12 h-12 rounded-xl bg-[#1C1C21] flex items-center justify-center text-[#A1A1AA] mx-auto mb-3">
+                  <Edit3 size={24} />
+                </div>
+                <h4 className="text-base font-bold text-white mb-1">No Profile Edits Found</h4>
+                <p className="text-xs text-[#A1A1AA] max-w-sm mx-auto">
+                  No mentors have updated their profiles in the last 30 days.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-[#A1A1AA]">
+                    <thead className="bg-[#1C1C21] text-xs uppercase font-bold text-[#A1A1AA] tracking-wider border-b border-[rgba(255,255,255,0.08)]">
+                      <tr>
+                        <th className="px-6 py-4">Mentor</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Last Updated</th>
+                        <th className="px-6 py-4">Fields Changed</th>
+                        <th className="px-6 py-4">Achievement Proofs</th>
+                        <th className="px-6 py-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[rgba(255,255,255,0.06)]">
+                      {recentlyEditedMentors.map((mentor) => {
+                        const updatedDate = mentor.profile_updated_at
+                          ? new Date(mentor.profile_updated_at).toLocaleString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "N/A";
+
+                        const proofCount = Array.isArray(mentor.achievement_proof_urls)
+                          ? mentor.achievement_proof_urls.filter(Boolean).length
+                          : 0;
+
+                        return (
+                          <tr key={mentor.id} className="hover:bg-[#1C1C21]/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                {mentor.profile_photo_url ? (
+                                  <img
+                                    src={mentor.profile_photo_url}
+                                    alt={mentor.full_name}
+                                    className="w-10 h-10 rounded-full object-cover border border-[rgba(255,255,255,0.12)] shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] flex items-center justify-center text-white font-bold text-xs shrink-0">
+                                    {(mentor.full_name || "M").charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-bold text-white text-sm truncate">{mentor.full_name}</p>
+                                  <p className="text-xs text-[#71717A] truncate">{mentor.email || mentor.college_name || "No email"}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                                  mentor.application_status === "approved"
+                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                                    : mentor.application_status === "rejected"
+                                    ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                }`}
+                              >
+                                {mentor.application_status || "pending"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-xs text-[#A1A1AA]">
+                              <div className="flex items-center gap-1.5">
+                                <Clock size={13} className="text-[#71717A]" />
+                                <span>{updatedDate}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {Array.isArray(mentor.last_edited_fields) && mentor.last_edited_fields.length > 0 ? (
+                                  mentor.last_edited_fields.map((field: string, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#1C1C21] text-[#A855F7] border border-[rgba(255,255,255,0.08)]"
+                                    >
+                                      {field}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-[#71717A] italic">Profile updated</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {proofCount > 0 ? (
+                                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[rgba(168,85,247,0.15)] text-[#A855F7] border border-[rgba(168,85,247,0.3)]">
+                                  {proofCount} {proofCount === 1 ? "proof" : "proofs"}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-[#71717A]">None</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <button
+                                onClick={() => setSelectedEditedMentor(mentor)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1C21] text-white hover:bg-[#25252b] border border-[rgba(255,255,255,0.12)] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Eye size={13} /> Review Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* RECENTLY EDITED MENTOR DETAIL MODAL */}
+        {/* ========================================================================= */}
+        {selectedEditedMentor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-fade-in">
+            <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl my-auto">
+              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {selectedEditedMentor.full_name}
+                  </h3>
+                  <p className="text-xs text-[#A1A1AA] mt-0.5">
+                    Profile last edited:{" "}
+                    {selectedEditedMentor.profile_updated_at
+                      ? new Date(selectedEditedMentor.profile_updated_at).toLocaleString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "N/A"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedEditedMentor(null);
+                    setMentorProofSignedUrls({});
+                  }}
+                  className="p-2 rounded-xl text-[#A1A1AA] hover:text-white hover:bg-[#1C1C21] transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Status & Fields Changed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-[#1C1C21] rounded-xl p-4 border border-[rgba(255,255,255,0.08)]">
+                  <p className="text-[11px] font-bold text-[#71717A] uppercase tracking-wider mb-2">Application Status</p>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                      selectedEditedMentor.application_status === "approved"
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                        : selectedEditedMentor.application_status === "rejected"
+                        ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                        : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                    }`}
+                  >
+                    {selectedEditedMentor.application_status || "pending"}
+                  </span>
+                </div>
+                <div className="bg-[#1C1C21] rounded-xl p-4 border border-[rgba(255,255,255,0.08)]">
+                  <p className="text-[11px] font-bold text-[#71717A] uppercase tracking-wider mb-2">Exam / Mentor Field</p>
+                  <p className="text-sm text-white">{selectedEditedMentor.exam_category || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Changed fields */}
+              {Array.isArray(selectedEditedMentor.last_edited_fields) && selectedEditedMentor.last_edited_fields.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-[#71717A] uppercase tracking-wider mb-2">Fields Changed</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedEditedMentor.last_edited_fields.map((field: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[rgba(168,85,247,0.1)] text-[#A855F7] border border-[rgba(168,85,247,0.25)]"
+                      >
+                        {field}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Key details */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold text-[#71717A] uppercase tracking-wider">Profile Details</p>
+                {[
+                  { label: "Full Name", value: selectedEditedMentor.full_name },
+                  { label: "College / Institution", value: selectedEditedMentor.college_name },
+                  { label: "LinkedIn URL", value: selectedEditedMentor.linkedin_url },
+                  { label: "Bio", value: selectedEditedMentor.bio },
+                  { label: "Top Achievement", value: selectedEditedMentor.top_achievement },
+                  { label: "Languages", value: Array.isArray(selectedEditedMentor.languages) ? selectedEditedMentor.languages.join(", ") : selectedEditedMentor.languages },
+                ].map(({ label, value }) =>
+                  value ? (
+                    <div key={label} className="bg-[#1C1C21] rounded-xl p-4 border border-[rgba(255,255,255,0.06)]">
+                      <p className="text-[10px] font-bold text-[#71717A] uppercase tracking-wider mb-1">{label}</p>
+                      {label === "LinkedIn URL" ? (
+                        <a
+                          href={value}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-[#A855F7] hover:underline break-all flex items-center gap-1.5"
+                        >
+                          <ExternalLink size={13} />
+                          {value}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-white leading-relaxed break-words">{value}</p>
+                      )}
+                    </div>
+                  ) : null
+                )}
+              </div>
+
+              {/* Achievement Proof Section */}
+              <div>
+                <p className="text-[11px] font-bold text-[#71717A] uppercase tracking-wider mb-3">Achievement proof</p>
+                {Array.isArray(selectedEditedMentor.achievement_proof_urls) &&
+                selectedEditedMentor.achievement_proof_urls.filter(Boolean).length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedEditedMentor.achievement_proof_urls
+                      .filter(Boolean)
+                      .map((url: string, idx: number) => {
+                        const signedUrl = mentorProofSignedUrls[url];
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-3 bg-[#1C1C21] rounded-xl p-3.5 border border-[rgba(255,255,255,0.08)]"
+                          >
+                            <Trophy size={15} className="text-amber-400 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-white">Achievement Proof #{idx + 1}</p>
+                            </div>
+                            {signedUrl ? (
+                              <a
+                                href={signedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[rgba(168,85,247,0.15)] text-[#A855F7] hover:bg-[rgba(168,85,247,0.25)] border border-[rgba(168,85,247,0.3)] transition-colors flex items-center gap-1.5 shrink-0"
+                              >
+                                <ExternalLink size={12} /> View
+                              </a>
+                            ) : (
+                              <span className="text-xs text-[#71717A] animate-pulse">Loading link…</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-[#71717A] italic">No achievement proofs submitted.</p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

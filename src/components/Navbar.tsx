@@ -25,6 +25,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [isMentor, setIsMentor] = useState(false);
   const [mentorProfile, setMentorProfile] = useState<any>(null);
+  const [hasMentorRow, setHasMentorRow] = useState(false);
+  const [mentorApplicationStatus, setMentorApplicationStatus] = useState<string | null>(null);
+  const [noticePopupOpen, setNoticePopupOpen] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -46,6 +49,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (!user) {
       setIsMentor(false);
       setMentorProfile(null);
+      setHasMentorRow(false);
+      setMentorApplicationStatus(null);
       return;
     }
 
@@ -55,12 +60,22 @@ export const Navbar: React.FC<NavbarProps> = ({
         .select("*")
         .eq("user_id", user.id);
 
-      const approvedMentor = mentorProfiles?.find(m => m.application_status === "approved");
+      if (mentorProfiles && mentorProfiles.length > 0) {
+        const approvedMentor = mentorProfiles.find(m => m.application_status === "approved");
+        const mentor = approvedMentor || mentorProfiles[0];
+        setHasMentorRow(true);
+        setMentorApplicationStatus(mentor.application_status);
 
-      if (approvedMentor) {
-        setIsMentor(true);
-        setMentorProfile(approvedMentor);
+        if (approvedMentor) {
+          setIsMentor(true);
+          setMentorProfile(approvedMentor);
+        } else {
+          setIsMentor(false);
+          setMentorProfile(null);
+        }
       } else {
+        setHasMentorRow(false);
+        setMentorApplicationStatus(null);
         setIsMentor(false);
         setMentorProfile(null);
       }
@@ -155,9 +170,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "polls", label: "Polls" },
     { id: "compare", label: "AI Engine" },
     { id: "find-mentor", label: "Mentors" },
-    { id: "become-mentor", label: "Become Mentor" },
+    { id: "become-mentor", label: hasMentorRow ? "Edit Profile" : "Become Mentor" },
     ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
   ];
+
+  const handleNavClick = (tabId: string) => {
+    if (tabId === "become-mentor" && hasMentorRow) {
+      setNoticePopupOpen(true);
+    } else {
+      setActiveTab(tabId);
+    }
+  };
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Account";
   const avatarLetter = displayName.charAt(0).toUpperCase();
@@ -187,7 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             return (
               <button
                 key={link.id}
-                onClick={() => setActiveTab(link.id)}
+                onClick={() => handleNavClick(link.id)}
                 className={`font-semibold text-sm transition-all duration-200 pb-1 border-b-2 relative group ${
                   isActive
                     ? "text-primary border-primary"
@@ -277,16 +300,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Menu items */}
                   <div className="py-1.5">
-                    <button
-                      onClick={() => {
-                        setActiveTab("home");
-                        setProfileOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-primary/10 hover:text-primary transition-colors duration-150 text-left group"
-                    >
-                      <User size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
-                      My Profile
-                    </button>
+                    {hasMentorRow ? (
+                      <button
+                        onClick={() => {
+                          setProfileOpen(false);
+                          setNoticePopupOpen(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-primary/10 hover:text-primary transition-colors duration-150 text-left group font-semibold"
+                      >
+                        <User size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                        Edit Profile
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setActiveTab("home");
+                          setProfileOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-primary/10 hover:text-primary transition-colors duration-150 text-left group"
+                      >
+                        <User size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                        My Profile
+                      </button>
+                    )}
 
                     <button
                       onClick={() => {
@@ -306,16 +342,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                       )}
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setActiveTab("become-mentor");
-                        setProfileOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-primary/10 hover:text-primary transition-colors duration-150 text-left group"
-                    >
-                      <LayoutDashboard size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
-                      My Application
-                    </button>
+                    {!hasMentorRow && (
+                      <button
+                        onClick={() => {
+                          setActiveTab("become-mentor");
+                          setProfileOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-primary/10 hover:text-primary transition-colors duration-150 text-left group"
+                      >
+                        <LayoutDashboard size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                        Become Mentor
+                      </button>
+                    )}
 
                     {isAdmin && (
                       <button
@@ -382,8 +420,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={link.id}
                 onClick={() => {
-                  setActiveTab(link.id);
                   setMobileMenuOpen(false);
+                  handleNavClick(link.id);
                 }}
                 className={`text-left font-semibold text-base py-2 transition-all duration-200 ${
                   isActive
@@ -433,16 +471,29 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                <button
-                  onClick={() => {
-                    setActiveTab("become-mentor");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 text-sm font-semibold text-on-surface hover:text-primary py-2 transition-colors duration-200"
-                >
-                  <LayoutDashboard size={16} className="text-on-surface-variant" />
-                  My Application
-                </button>
+                {hasMentorRow ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setNoticePopupOpen(true);
+                    }}
+                    className="flex items-center gap-2 text-sm font-semibold text-on-surface hover:text-primary py-2 transition-colors duration-200"
+                  >
+                    <User size={16} className="text-on-surface-variant" />
+                    Edit Profile
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setActiveTab("become-mentor");
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2 text-sm font-semibold text-on-surface hover:text-primary py-2 transition-colors duration-200"
+                  >
+                    <LayoutDashboard size={16} className="text-on-surface-variant" />
+                    Become Mentor
+                  </button>
+                )}
 
                 <button
                   onClick={handleSignOut}
@@ -476,6 +527,43 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       )}
+
+      {/* Notice Popup: Before you edit */}
+      {noticePopupOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#141417] border border-[rgba(255,255,255,0.12)] p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-5 text-on-surface">
+            <div className="flex items-center justify-between pb-3 border-b border-[rgba(255,255,255,0.08)]">
+              <h3 className="font-extrabold text-lg text-white">Before you edit</h3>
+              <button
+                type="button"
+                onClick={() => setNoticePopupOpen(false)}
+                className="text-on-surface-variant hover:text-white transition-colors p-1 rounded-lg"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-[#A1A1AA] leading-relaxed">
+              {mentorApplicationStatus === "approved"
+                ? "You can update your achievements, photo, bio and other details. Your college, ID proof and LinkedIn are locked because they were verified. Please do not try to change them. If something there is wrong, contact support."
+                : "You can update any detail of your application until it is reviewed."}
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNoticePopupOpen(false);
+                  setActiveTab("become-mentor");
+                }}
+                className="w-full brand-gradient-bg py-2.5 px-6 rounded-xl font-bold text-sm text-white hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-primary/20"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </nav>
   );
 };

@@ -12,6 +12,7 @@ import { CustomSelect } from "../components/CustomSelect";
 import { supabase } from "../supabase";
 import { AREAS_OF_EXPERTISE, LANGUAGES } from "../constants/mentorConstants";
 import { FREE_MODE } from "../lib/config";
+import { SUPPORT_EMAIL } from "../lib/legal";
 
 const DRAFT_STORAGE_KEY = "becomeMentor_draft";
 
@@ -227,8 +228,15 @@ export const BecomeMentor: React.FC = () => {
   const [expertiseDropdownOpen, setExpertiseDropdownOpen] = useState(false);
   const expertiseDropdownRef = React.useRef<HTMLDivElement>(null);
 
-  // Achievement Proofs State (Multiple Uploads)
+  // Achievement Proofs State (Multiple Uploads for ID verification)
   const [achievementProofs, setAchievementProofs] = useState<string[]>([""]);
+
+  // Phase 12c: Edit Profile States
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isApprovedMentor, setIsApprovedMentor] = useState(false);
+  const [initialMentorData, setInitialMentorData] = useState<any>(null);
+  const [profileUpdatedBanner, setProfileUpdatedBanner] = useState(false);
+  const [achievementProofUrls, setAchievementProofUrls] = useState<string[]>([]);
 
   // OTP States
   const [otpSent, setOtpSent] = useState(false);
@@ -364,6 +372,20 @@ export const BecomeMentor: React.FC = () => {
 
           if (mentorDb && !mentorDbError) {
             dbLoaded = true;
+            setIsEditMode(true);
+            setIsApprovedMentor(mentorDb.application_status === 'approved');
+            setInitialMentorData(mentorDb);
+
+            if (Array.isArray(mentorDb.achievement_proof_urls)) {
+              setAchievementProofUrls(mentorDb.achievement_proof_urls);
+            }
+
+            try {
+              localStorage.removeItem(DRAFT_STORAGE_KEY);
+            } catch (err) {
+              console.warn("Failed to remove stale draft:", err);
+            }
+            setDraftRestored(false);
 
             // Parse areas of expertise
             let parsedExpertise: string[] = [];
@@ -527,7 +549,7 @@ export const BecomeMentor: React.FC = () => {
   const allFormValues = watch();
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || isEditMode) return;
 
     const timer = setTimeout(() => {
       const draftData = {
@@ -865,9 +887,59 @@ export const BecomeMentor: React.FC = () => {
       // Check if this user already has a mentor record
       const { data: existingMentor } = await supabase
         .from('mentors')
-        .select('id, application_status')
+        .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      const currentlyApproved = existingMentor?.application_status === 'approved' || isApprovedMentor;
+
+      // Compute changed fields for edit tracking
+      const changedFields: string[] = [];
+      const baseCompare = initialMentorData || existingMentor;
+      if (baseCompare) {
+        if (data.fullName !== (baseCompare.full_name || "")) changedFields.push("Full Name");
+        if ((data.profilePhotoUrl || "") !== (baseCompare.profile_photo_url || "")) changedFields.push("Photo");
+        if (data.personalEmail !== (baseCompare.personal_email || "")) changedFields.push("Email");
+        if (data.phone !== (baseCompare.phone_number || "")) changedFields.push("Phone");
+        if ((data.whatsapp || "") !== (baseCompare.whatsapp_number || "")) changedFields.push("WhatsApp");
+        if (data.city !== (baseCompare.city || "")) changedFields.push("City");
+        if (data.bio !== (baseCompare.bio || "")) changedFields.push("Bio");
+        if ((data.topAchievement || "") !== (baseCompare.top_achievement || "")) changedFields.push("Top Achievement");
+        if ((data.helpStatement || "") !== (baseCompare.help_statement || "")) changedFields.push("Help Statement");
+        if ((data.milestones || "") !== (baseCompare.milestones || "")) changedFields.push("Milestones");
+
+        const origAch = baseCompare.achievements || [];
+        if (JSON.stringify(cleanedAchievements) !== JSON.stringify(origAch)) changedFields.push("Achievements");
+
+        const validProofs = achievementProofUrls.filter(u => u && u.trim() !== "");
+        const origProofs = baseCompare.achievement_proof_urls || [];
+        if (JSON.stringify(validProofs) !== JSON.stringify(origProofs)) changedFields.push("Achievement Proof");
+
+        const origJourney = baseCompare.journey_tags || [];
+        if (JSON.stringify(journeyTags) !== JSON.stringify(origJourney)) changedFields.push("Journey Tags");
+
+        const origExpertise = Array.isArray(baseCompare.areas_of_expertise) ? baseCompare.areas_of_expertise : [];
+        if (JSON.stringify(cleanedExpertise) !== JSON.stringify(origExpertise)) changedFields.push("Expertise");
+
+        const origLanguages = baseCompare.languages_known || [];
+        if (JSON.stringify(data.languages || []) !== JSON.stringify(origLanguages)) changedFields.push("Languages");
+
+        const currentAvail = data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null);
+        if (currentAvail !== (baseCompare.availability_time || null)) changedFields.push("Availability");
+
+        if (JSON.stringify(data.sessionDurations || []) !== JSON.stringify(baseCompare.session_durations || [])) changedFields.push("Session Durations");
+        if (JSON.stringify(data.prices || {}) !== JSON.stringify(baseCompare.pricing || {})) changedFields.push("Pricing");
+
+        if (!currentlyApproved) {
+          if ((data.college || "") !== (baseCompare.college_name || "")) changedFields.push("College");
+          if (proofUrlString !== (baseCompare.govt_id_url || "")) changedFields.push("ID Proof");
+          if ((data.linkedinUrl || "") !== (baseCompare.linkedin_url || "")) changedFields.push("LinkedIn");
+        }
+      }
+
+      if (changedFields.length === 0) {
+        changedFields.push("Profile");
+      }
 
       const mentorPayload: any = {
         user_id: user.id,
@@ -886,14 +958,12 @@ export const BecomeMentor: React.FC = () => {
         upsc_stage: data.upscStage,
         upsc_optional_subject: data.upscOptionalSubject,
         target_attempt_year: data.targetAttemptYear ? parseInt(data.targetAttemptYear) : null,
-        institution_other: data.institutionOther,
         exam_branch: data.examBranch || "",
         exam_branch_other: data.examBranchOther || "",
         course_type: data.courseType,
         target_exam: data.targetExam,
         target_college: data.targetCollege,
         other_exam: data.otherExam,
-        college_name: data.college || "",
         branch: data.branch || "",
         degree_type: data.degreeType || "",
         year_of_admission: data.admissionYear ? parseInt(data.admissionYear) : null,
@@ -903,10 +973,8 @@ export const BecomeMentor: React.FC = () => {
         journey_tags: journeyTags.length > 0 ? journeyTags : null,
         help_statement: data.helpStatement ? data.helpStatement.trim() : null,
         milestones: data.milestones ? data.milestones.trim() : null,
-        govt_id_url: proofUrlString,
         student_id_front_url: data.studentIdFrontUrl,
         student_id_back_url: data.studentIdBackUrl,
-        linkedin_url: data.linkedinUrl,
         areas_of_expertise: cleanedExpertise.length > 0 ? cleanedExpertise : null,
         expertise_other: customExpertise || null,
         languages_known: data.languages,
@@ -923,8 +991,19 @@ export const BecomeMentor: React.FC = () => {
         bio: data.bio,
         availability_time: data.availabilityTime === 'Custom' ? (data.customAvailability || 'Custom') : (data.availabilityTime || null),
         achievements: cleanedAchievements.length > 0 ? cleanedAchievements : null,
+        achievement_proof_urls: achievementProofUrls.filter(u => u && u.trim() !== ""),
+        profile_updated_at: new Date().toISOString(),
+        last_edited_fields: changedFields,
         application_status: existingMentor?.application_status || 'pending'
       };
+
+      // Locked identity fields: do not send them in update payload if approved
+      if (!currentlyApproved) {
+        mentorPayload.college_name = data.college || "";
+        mentorPayload.institution_other = data.institutionOther || null;
+        mentorPayload.govt_id_url = proofUrlString;
+        mentorPayload.linkedin_url = data.linkedinUrl;
+      }
 
       let saveError;
       if (existingMentor) {
@@ -934,6 +1013,11 @@ export const BecomeMentor: React.FC = () => {
           .eq('id', existingMentor.id);
         saveError = error;
       } else {
+        // First-time insert: include college, ID proof, linkedin
+        mentorPayload.college_name = data.college || "";
+        mentorPayload.institution_other = data.institutionOther || null;
+        mentorPayload.govt_id_url = proofUrlString;
+        mentorPayload.linkedin_url = data.linkedinUrl;
         const { error } = await supabase
           .from('mentors')
           .insert([mentorPayload]);
@@ -942,7 +1026,7 @@ export const BecomeMentor: React.FC = () => {
 
       if (saveError) {
         console.error("Failed to submit/update application:", saveError);
-        setSubmitError("Something went wrong saving your application — please try again.");
+        setSubmitError(saveError.message || "Something went wrong saving your application — please try again.");
         return;
       }
       
@@ -953,10 +1037,17 @@ export const BecomeMentor: React.FC = () => {
         console.warn("Failed to remove draft on submission:", err);
       }
 
-      setFormSubmitted(true);
-    } catch (e) {
+      if (existingMentor || isEditMode) {
+        setProfileUpdatedBanner(true);
+        setInitialMentorData({ ...(baseCompare || {}), ...mentorPayload });
+        setIsEditMode(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setFormSubmitted(true);
+      }
+    } catch (e: any) {
       console.error(e);
-      setSubmitError("An error occurred while saving your application. Please check your connection and try again.");
+      setSubmitError(e?.message || "An error occurred while saving your application. Please check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1033,8 +1124,28 @@ export const BecomeMentor: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleSubmit(onSubmit as any)} className="glass-card p-6 md:p-10 rounded-2xl shadow-2xl relative border border-white/10 space-y-10">
-                {/* Draft Restored Banner */}
-                {draftRestored && (
+                {/* Profile Updated Success Banner */}
+                {profileUpdatedBanner && (
+                  <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl flex items-center justify-between gap-3 text-sm animate-fade-in">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle size={18} className="text-green-400 shrink-0" />
+                      <span className="text-green-300 font-semibold text-sm">
+                        Profile updated
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProfileUpdatedBanner(false)}
+                      className="text-on-surface-variant hover:text-white p-1 rounded-lg transition-colors"
+                      title="Dismiss notice"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Draft Restored Banner (Only for new applicants) */}
+                {draftRestored && !isEditMode && (
                   <div className="bg-primary/10 border border-primary/30 p-3.5 rounded-xl flex items-center justify-between gap-3 text-sm animate-fade-in">
                     <div className="flex items-center gap-2.5">
                       <Sparkles size={16} className="text-primary shrink-0" />
@@ -1064,22 +1175,28 @@ export const BecomeMentor: React.FC = () => {
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant/10">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-extrabold text-on-surface">Apply to Mentor</h2>
-                    <button
-                      type="button"
-                      onClick={handleClearDraft}
-                      className="text-xs text-on-surface-variant hover:text-red-400 bg-surface-container-low/60 hover:bg-red-500/10 border border-outline-variant/20 px-2.5 py-1 rounded-lg transition-all font-medium flex items-center gap-1.5"
-                      title="Reset all fields and clear draft"
-                    >
-                      <RotateCcw size={12} /> Clear draft / Start over
-                    </button>
+                    <h2 className="text-2xl font-extrabold text-on-surface">
+                      {isEditMode ? "Edit your profile" : "Apply to Mentor"}
+                    </h2>
+                    {!isEditMode && (
+                      <button
+                        type="button"
+                        onClick={handleClearDraft}
+                        className="text-xs text-on-surface-variant hover:text-red-400 bg-surface-container-low/60 hover:bg-red-500/10 border border-outline-variant/20 px-2.5 py-1 rounded-lg transition-all font-medium flex items-center gap-1.5"
+                        title="Reset all fields and clear draft"
+                      >
+                        <RotateCcw size={12} /> Clear draft / Start over
+                      </button>
+                    )}
                   </div>
-                  <div className="flex gap-1.5 items-center">
-                    <span className="text-xs font-bold text-primary mr-2 uppercase tracking-wider">Step 1 of 3</span>
-                    <div className="w-8 h-1 bg-primary rounded-full"></div>
-                    <div className="w-4 h-1 bg-outline-variant/30 rounded-full"></div>
-                    <div className="w-4 h-1 bg-outline-variant/30 rounded-full"></div>
-                  </div>
+                  {!isEditMode && (
+                    <div className="flex gap-1.5 items-center">
+                      <span className="text-xs font-bold text-primary mr-2 uppercase tracking-wider">Step 1 of 3</span>
+                      <div className="w-8 h-1 bg-primary rounded-full"></div>
+                      <div className="w-4 h-1 bg-outline-variant/30 rounded-full"></div>
+                      <div className="w-4 h-1 bg-outline-variant/30 rounded-full"></div>
+                    </div>
+                  )}
                 </div>
 
                 {/* --- A. Basic Details --- */}
@@ -1348,6 +1465,67 @@ export const BecomeMentor: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Optional Achievement Proof Photos (Up to 3 files) */}
+                  <div className="space-y-4 mt-6 pt-6 border-t border-outline-variant/10">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-[#FF9D2E]" />
+                        Add proof photo (optional)
+                      </label>
+                      <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                        Only our team can see this. It is never shown on your profile.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {achievementProofUrls.map((url, index) => (
+                        <div key={index} className="bg-surface-container-low/30 p-3.5 rounded-xl border border-outline-variant/20 space-y-2 animate-fade-in">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-on-surface">Proof #{index + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAchievementProofUrls(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="text-red-400 hover:text-red-300 p-1 rounded transition-colors flex items-center gap-1"
+                              title="Remove proof"
+                            >
+                              <Trash2 size={13} /> Remove
+                            </button>
+                          </div>
+                          <FileUpload
+                            label=""
+                            accept="image/jpeg, image/png, image/webp, application/pdf"
+                            maxSizeMB={10}
+                            bucket="achievement-proofs"
+                            value={url}
+                            onUploadSuccess={(uploadedUrl) => {
+                              setAchievementProofUrls(prev => {
+                                const updated = [...prev];
+                                updated[index] = uploadedUrl;
+                                return updated;
+                              });
+                            }}
+                          />
+                        </div>
+                      ))}
+
+                      {achievementProofUrls.length < 3 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (achievementProofUrls.length < 3) {
+                              setAchievementProofUrls(prev => [...prev, ""]);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit"
+                        >
+                          <Plus size={14} /> Add proof photo (optional)
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* --- B. Current Role / Profession --- */}
@@ -1403,81 +1581,96 @@ export const BecomeMentor: React.FC = () => {
                     {/* === JEE === */}
                     {watchExamCategory === "JEE" && (
                       <>
-                        <div className="space-y-2 relative">
-                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / University</label>
-                          <div className="relative">
-                            <div
-                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
-                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
-                            >
-                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
-                                {watchCollege || 'Select College'}
-                              </span>
-                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </div>
-                            {collegeDropdownOpen && (
-                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
-                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
-                                  <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
-                                    <input
-                                      type="text"
-                                      value={collegeSearch}
-                                      onChange={(e) => setCollegeSearch(e.target.value)}
-                                      placeholder="Search colleges..."
-                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
+                        {isApprovedMentor ? (
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / University</label>
+                            <input
+                              type="text"
+                              disabled
+                              value={watchCollege || initialMentorData?.college_name || ""}
+                              className="w-full bg-surface-container-low/30 border border-outline-variant/20 px-4 py-3 rounded-xl text-sm opacity-60 cursor-not-allowed text-on-surface"
+                            />
+                            <p className="text-xs text-on-surface-variant/70 mt-1">
+                              To change this, please <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline hover:text-primary/80">contact support</a>.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 relative">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / University</label>
+                            <div className="relative">
+                              <div
+                                onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                                className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                              >
+                                <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                  {watchCollege || 'Select College'}
+                                </span>
+                                <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </div>
+                              {collegeDropdownOpen && (
+                                <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                  <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                    <div className="relative">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                      <input
+                                        type="text"
+                                        value={collegeSearch}
+                                        onChange={(e) => setCollegeSearch(e.target.value)}
+                                        placeholder="Search colleges..."
+                                        className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                    {dbInstitutions
+                                      .filter(i => i.exam_category === 'JEE')
+                                      .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                      .map(i => (
+                                        <button
+                                          key={i.name}
+                                          type="button"
+                                          onClick={() => {
+                                            setValue("college", i.name);
+                                            trigger("college");
+                                            setCollegeDropdownOpen(false);
+                                            setCollegeSearch("");
+                                          }}
+                                          className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                            watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                          }`}
+                                        >
+                                          {i.name}
+                                        </button>
+                                      ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setValue("college", "Other");
+                                        trigger("college");
+                                        setCollegeDropdownOpen(false);
+                                        setCollegeSearch("");
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                        watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                      }`}
+                                    >
+                                      Other
+                                    </button>
+                                    {dbInstitutions.filter(i => i.exam_category === 'JEE').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                      <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                    )}
                                   </div>
                                 </div>
-                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
-                                  {dbInstitutions
-                                    .filter(i => i.exam_category === 'JEE')
-                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
-                                    .map(i => (
-                                      <button
-                                        key={i.name}
-                                        type="button"
-                                        onClick={() => {
-                                          setValue("college", i.name);
-                                          trigger("college");
-                                          setCollegeDropdownOpen(false);
-                                          setCollegeSearch("");
-                                        }}
-                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
-                                        }`}
-                                      >
-                                        {i.name}
-                                      </button>
-                                    ))}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setValue("college", "Other");
-                                      trigger("college");
-                                      setCollegeDropdownOpen(false);
-                                      setCollegeSearch("");
-                                    }}
-                                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                      watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
-                                    }`}
-                                  >
-                                    Other
-                                  </button>
-                                  {dbInstitutions.filter(i => i.exam_category === 'JEE').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
-                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
-                                  )}
-                                </div>
-                              </div>
+                              )}
+                            </div>
+                            <input type="hidden" {...register("college")} />
+                            {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                            {watchCollege === "Other" && (
+                              <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college name" />
                             )}
                           </div>
-                          <input type="hidden" {...register("college")} />
-                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
-                          {watchCollege === "Other" && (
-                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college name" />
-                          )}
-                        </div>
+                        )}
 
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Degree Type</label>
@@ -1604,81 +1797,96 @@ export const BecomeMentor: React.FC = () => {
                     {watchExamCategory === "NEET" && (
                       <>
                         
-                        <div className="space-y-2 relative">
-                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
-                          <div className="relative">
-                            <div 
-                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
-                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
-                            >
-                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
-                                {watchCollege || 'Select College'}
-                              </span>
-                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </div>
-                            {collegeDropdownOpen && (
-                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
-                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
-                                  <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
-                                    <input
-                                      type="text"
-                                      value={collegeSearch}
-                                      onChange={(e) => setCollegeSearch(e.target.value)}
-                                      placeholder="Search colleges..."
-                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
+                        {isApprovedMentor ? (
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                            <input
+                              type="text"
+                              disabled
+                              value={watchCollege || initialMentorData?.college_name || ""}
+                              className="w-full bg-surface-container-low/30 border border-outline-variant/20 px-4 py-3 rounded-xl text-sm opacity-60 cursor-not-allowed text-on-surface"
+                            />
+                            <p className="text-xs text-on-surface-variant/70 mt-1">
+                              To change this, please <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline hover:text-primary/80">contact support</a>.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 relative">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                            <div className="relative">
+                              <div 
+                                onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                                className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                              >
+                                <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                  {watchCollege || 'Select College'}
+                                </span>
+                                <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </div>
+                              {collegeDropdownOpen && (
+                                <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                  <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                    <div className="relative">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                      <input
+                                        type="text"
+                                        value={collegeSearch}
+                                        onChange={(e) => setCollegeSearch(e.target.value)}
+                                        placeholder="Search colleges..."
+                                        className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
-                                  {dbInstitutions
-                                    .filter(i => i.exam_category === 'NEET')
-                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
-                                    .map(i => (
+                                  <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                    {dbInstitutions
+                                      .filter(i => i.exam_category === 'NEET')
+                                      .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                      .map(i => (
+                                        <button
+                                          key={i.name}
+                                          type="button"
+                                          onClick={() => {
+                                            setValue("college", i.name);
+                                            trigger("college");
+                                            setCollegeDropdownOpen(false);
+                                            setCollegeSearch("");
+                                          }}
+                                          className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                            watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                          }`}
+                                        >
+                                          {i.name}
+                                        </button>
+                                      ))}
                                       <button
-                                        key={i.name}
                                         type="button"
                                         onClick={() => {
-                                          setValue("college", i.name);
+                                          setValue("college", "Other");
                                           trigger("college");
                                           setCollegeDropdownOpen(false);
                                           setCollegeSearch("");
                                         }}
                                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                          watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
                                         }`}
                                       >
-                                        {i.name}
+                                        Other
                                       </button>
-                                    ))}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setValue("college", "Other");
-                                        trigger("college");
-                                        setCollegeDropdownOpen(false);
-                                        setCollegeSearch("");
-                                      }}
-                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                        watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
-                                      }`}
-                                    >
-                                      Other
-                                    </button>
-                                  {dbInstitutions.filter(i => i.exam_category === 'NEET').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
-                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
-                                  )}
+                                    {dbInstitutions.filter(i => i.exam_category === 'NEET').filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                      <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
+                              )}
+                            </div>
+                            <input type="hidden" {...register("college")} />
+                            {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                            {watchCollege === "Other" && (
+                              <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
                             )}
                           </div>
-                          <input type="hidden" {...register("college")} />
-                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
-                          {watchCollege === "Other" && (
-                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
-                          )}
-                        </div>
+                        )}
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Course Type</label>
                           <CustomSelect
@@ -1735,81 +1943,96 @@ export const BecomeMentor: React.FC = () => {
                     {(watchExamCategory === "CAT" || watchExamCategory === "CLAT") && (
                       <>
                         
-                        <div className="space-y-2 relative">
-                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
-                          <div className="relative">
-                            <div 
-                              onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
-                              className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
-                            >
-                              <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
-                                {watchCollege || 'Select College'}
-                              </span>
-                              <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </div>
-                            {collegeDropdownOpen && (
-                              <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
-                                <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
-                                  <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
-                                    <input
-                                      type="text"
-                                      value={collegeSearch}
-                                      onChange={(e) => setCollegeSearch(e.target.value)}
-                                      placeholder="Search colleges..."
-                                      className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
+                        {isApprovedMentor ? (
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                            <input
+                              type="text"
+                              disabled
+                              value={watchCollege || initialMentorData?.college_name || ""}
+                              className="w-full bg-surface-container-low/30 border border-outline-variant/20 px-4 py-3 rounded-xl text-sm opacity-60 cursor-not-allowed text-on-surface"
+                            />
+                            <p className="text-xs text-on-surface-variant/70 mt-1">
+                              To change this, please <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline hover:text-primary/80">contact support</a>.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 relative">
+                            <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">College / Institution</label>
+                            <div className="relative">
+                              <div 
+                                onClick={() => setCollegeDropdownOpen(!collegeDropdownOpen)}
+                                className={`w-full bg-surface-container-low/50 border ${errors.college ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 rounded-xl text-sm cursor-pointer flex items-center justify-between text-on-surface`}
+                              >
+                                <span className={watchCollege ? 'text-on-surface' : 'text-on-surface-variant/50'}>
+                                  {watchCollege || 'Select College'}
+                                </span>
+                                <svg className={`w-4 h-4 transition-transform ${collegeDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </div>
+                              {collegeDropdownOpen && (
+                                <div className="absolute z-50 mt-1 w-full bg-surface-container-low border border-outline-variant/30 rounded-xl shadow-2xl max-h-64 overflow-hidden">
+                                  <div className="sticky top-0 bg-surface-container-low p-2 border-b border-outline-variant/20">
+                                    <div className="relative">
+                                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={14} />
+                                      <input
+                                        type="text"
+                                        value={collegeSearch}
+                                        onChange={(e) => setCollegeSearch(e.target.value)}
+                                        placeholder="Search colleges..."
+                                        className="w-full bg-surface-container-high/50 border border-outline-variant/20 pl-8 pr-3 py-2 rounded-lg text-xs focus:border-primary outline-none text-on-surface"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                                <div className="overflow-y-auto max-h-48 custom-scrollbar">
-                                  {dbInstitutions
-                                    .filter(i => i.exam_category === watchExamCategory)
-                                    .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
-                                    .map(i => (
+                                  <div className="overflow-y-auto max-h-48 custom-scrollbar">
+                                    {dbInstitutions
+                                      .filter(i => i.exam_category === watchExamCategory)
+                                      .filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase()))
+                                      .map(i => (
+                                        <button
+                                          key={i.name}
+                                          type="button"
+                                          onClick={() => {
+                                            setValue("college", i.name);
+                                            trigger("college");
+                                            setCollegeDropdownOpen(false);
+                                            setCollegeSearch("");
+                                          }}
+                                          className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
+                                            watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                          }`}
+                                        >
+                                          {i.name}
+                                        </button>
+                                      ))}
                                       <button
-                                        key={i.name}
                                         type="button"
                                         onClick={() => {
-                                          setValue("college", i.name);
+                                          setValue("college", "Other");
                                           trigger("college");
                                           setCollegeDropdownOpen(false);
                                           setCollegeSearch("");
                                         }}
                                         className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                          watchCollege === i.name ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
+                                          watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
                                         }`}
                                       >
-                                        {i.name}
+                                        Other
                                       </button>
-                                    ))}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setValue("college", "Other");
-                                        trigger("college");
-                                        setCollegeDropdownOpen(false);
-                                        setCollegeSearch("");
-                                      }}
-                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${
-                                        watchCollege === "Other" ? 'bg-primary/15 text-primary font-semibold' : 'text-on-surface'
-                                      }`}
-                                    >
-                                      Other
-                                    </button>
-                                  {dbInstitutions.filter(i => i.exam_category === watchExamCategory).filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
-                                    <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
-                                  )}
+                                    {dbInstitutions.filter(i => i.exam_category === watchExamCategory).filter(i => i.name.toLowerCase().includes(collegeSearch.toLowerCase())).length === 0 && (
+                                      <p className="px-4 py-3 text-xs text-on-surface-variant">No colleges found</p>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
+                              )}
+                            </div>
+                            <input type="hidden" {...register("college")} />
+                            {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
+                            {watchCollege === "Other" && (
+                              <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
                             )}
                           </div>
-                          <input type="hidden" {...register("college")} />
-                          {errors.college && <p className="text-xs text-red-500">{errors.college.message}</p>}
-                          {watchCollege === "Other" && (
-                            <input {...register("institutionOther")} className={`mt-2 w-full bg-surface-container-low/50 border ${errors.institutionOther ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-2 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="Enter your college/institution name" />
-                          )}
-                        </div>
+                        )}
                         <div className="space-y-2">
                           <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Target Attempt Year (Optional)</label>
                           <input type="number" {...register("targetAttemptYear")} className="w-full bg-surface-container-low/50 border border-outline-variant/30 px-4 py-3 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none" placeholder="e.g. 2025" />
@@ -2023,99 +2246,123 @@ export const BecomeMentor: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">LinkedIn Profile URL</label>
                     <div className="relative">
-                      <input {...register("linkedinUrl")} className={`w-full bg-surface-container-low/50 border ${errors.linkedinUrl ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 pl-11 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none`} placeholder="https://linkedin.com/in/username" />
+                      <input
+                        {...register("linkedinUrl")}
+                        disabled={isApprovedMentor}
+                        className={`w-full bg-surface-container-low/50 border ${errors.linkedinUrl ? 'border-red-500' : 'border-outline-variant/30'} px-4 py-3 pl-11 rounded-xl text-sm focus:border-primary focus:ring-1 outline-none ${isApprovedMentor ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        placeholder="https://linkedin.com/in/username"
+                      />
                       <Link className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50" size={16} />
                     </div>
+                    {isApprovedMentor && (
+                      <p className="text-xs text-on-surface-variant/70 mt-1">
+                        To change this, please <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline hover:text-primary/80">contact support</a>.
+                      </p>
+                    )}
                     {errors.linkedinUrl && <p className="text-xs text-red-500">{errors.linkedinUrl.message}</p>}
                   </div>
 
-                  {/* Achievement Proof Section */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
-                        Achievement Proof
-                      </label>
-                      <p className="text-xs text-on-surface-variant/70 mt-0.5">
-                        Upload proof of your achievements, certifications, ranks, awards, etc.
+                  {isApprovedMentor ? (
+                    <div className="p-4 rounded-xl border border-outline-variant/20 bg-surface-container-low/30 space-y-2">
+                      <div className="flex items-center gap-2.5 text-green-400 font-semibold text-sm">
+                        <ShieldCheck size={20} className="shrink-0" />
+                        <span>ID proof verified</span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant/70">
+                        To change this, please <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline hover:text-primary/80">contact support</a>.
                       </p>
                     </div>
-
-                    <div className="space-y-4">
-                      {achievementProofs.map((url, index) => (
-                        <div key={index} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-on-surface-variant">
-                              {achievementProofs.length > 1 ? `Achievement Proof ${index + 1}` : 'Achievement Proof 1'}
-                            </span>
-                            {achievementProofs.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAchievementProof(index)}
-                                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
-                                title="Remove this achievement proof upload"
-                              >
-                                <Trash2 size={13} /> Remove
-                              </button>
-                            )}
-                          </div>
-                          <FileUpload
-                            label=""
-                            accept="application/pdf, image/jpeg, image/png, image/webp"
-                            maxSizeMB={10}
-                            bucket="government-ids"
-                            value={url}
-                            error={index === 0 ? errors.govtIdUrl?.message : undefined}
-                            onUploadSuccess={(uploadedUrl) => handleAchievementProofSuccess(index, uploadedUrl)}
-                          />
+                  ) : (
+                    <>
+                      {/* Achievement Proof Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                            Achievement Proof
+                          </label>
+                          <p className="text-xs text-on-surface-variant/70 mt-0.5">
+                            Upload proof of your achievements, certifications, ranks, awards, etc.
+                          </p>
                         </div>
-                      ))}
-                    </div>
 
-                    <button
-                      type="button"
-                      onClick={handleAddAchievementProof}
-                      className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit"
-                    >
-                      <Plus size={14} /> + Add another achievement
-                    </button>
-                  </div>
+                        <div className="space-y-4">
+                          {achievementProofs.map((url, index) => (
+                            <div key={index} className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-on-surface-variant">
+                                  {achievementProofs.length > 1 ? `Achievement Proof ${index + 1}` : 'Achievement Proof 1'}
+                                </span>
+                                {achievementProofs.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAchievementProof(index)}
+                                    className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                                    title="Remove this achievement proof upload"
+                                  >
+                                    <Trash2 size={13} /> Remove
+                                  </button>
+                                )}
+                              </div>
+                              <FileUpload
+                                label=""
+                                accept="application/pdf, image/jpeg, image/png, image/webp"
+                                maxSizeMB={10}
+                                bucket="government-ids"
+                                value={url}
+                                error={index === 0 ? errors.govtIdUrl?.message : undefined}
+                                onUploadSuccess={(uploadedUrl) => handleAchievementProofSuccess(index, uploadedUrl)}
+                              />
+                            </div>
+                          ))}
+                        </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Controller
-                      control={control}
-                      name="studentIdFrontUrl"
-                      render={({ field }) => (
-                        <FileUpload
-                          label="Student ID Card (Front)"
-                          helperText="Must clearly show your photo, name, and enrollment year"
-                          accept="application/pdf, image/jpeg, image/png, image/webp"
-                          maxSizeMB={10}
-                          bucket="student-ids"
-                          value={field.value}
-                          error={errors.studentIdFrontUrl?.message}
-                          onUploadSuccess={field.onChange}
+                        <button
+                          type="button"
+                          onClick={handleAddAchievementProof}
+                          className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl transition-colors shrink-0 w-fit"
+                        >
+                          <Plus size={14} /> + Add another achievement
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Controller
+                          control={control}
+                          name="studentIdFrontUrl"
+                          render={({ field }) => (
+                            <FileUpload
+                              label="Student ID Card (Front)"
+                              helperText="Must clearly show your photo, name, and enrollment year"
+                              accept="application/pdf, image/jpeg, image/png, image/webp"
+                              maxSizeMB={10}
+                              bucket="student-ids"
+                              value={field.value}
+                              error={errors.studentIdFrontUrl?.message}
+                              onUploadSuccess={field.onChange}
+                            />
+                          )}
                         />
-                      )}
-                    />
-                    <Controller
-                      control={control}
-                      name="studentIdBackUrl"
-                      render={({ field }) => (
-                        <FileUpload
-                          label="Student ID Card (Back)"
-                          accept="application/pdf, image/jpeg, image/png, image/webp"
-                          maxSizeMB={10}
-                          bucket="student-ids"
-                          value={field.value}
-                          error={errors.studentIdBackUrl?.message}
-                          onUploadSuccess={field.onChange}
+                        <Controller
+                          control={control}
+                          name="studentIdBackUrl"
+                          render={({ field }) => (
+                            <FileUpload
+                              label="Student ID Card (Back)"
+                              accept="application/pdf, image/jpeg, image/png, image/webp"
+                              maxSizeMB={10}
+                              bucket="student-ids"
+                              value={field.value}
+                              error={errors.studentIdBackUrl?.message}
+                              onUploadSuccess={field.onChange}
+                            />
+                          )}
                         />
-                      )}
-                    />
-                  </div>
-                  <p className="text-[11px] text-on-surface-variant/70 italic">
-                    Note: Uploaded files aren't saved in drafts — please re-upload if you return to a saved draft.
-                  </p>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant/70 italic">
+                        Note: Uploaded files aren't saved in drafts — please re-upload if you return to a saved draft.
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 {/* --- D. Mentoring Preferences --- */}
@@ -2419,6 +2666,8 @@ export const BecomeMentor: React.FC = () => {
                     >
                       {isSubmitting ? (
                         <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      ) : isEditMode ? (
+                        "Save changes"
                       ) : (
                         "Next Step →"
                       )}

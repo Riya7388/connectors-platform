@@ -23,3 +23,36 @@ export const uploadFile = async (
 
   return data.publicUrl;
 };
+
+export const getSignedUrl = async (
+  bucket: string,
+  fullUrlOrPath: string,
+  expiresInSeconds: number = 3600
+): Promise<string> => {
+  if (!fullUrlOrPath) return '';
+  const bucketPrefix = `/${bucket}/`;
+  let path = fullUrlOrPath;
+  if (fullUrlOrPath.includes(bucketPrefix)) {
+    path = fullUrlOrPath.split(bucketPrefix)[1];
+  } else if (fullUrlOrPath.startsWith('http://') || fullUrlOrPath.startsWith('https://')) {
+    try {
+      const parsed = new URL(fullUrlOrPath);
+      const pathname = parsed.pathname;
+      if (pathname.includes(bucketPrefix)) {
+        path = pathname.split(bucketPrefix)[1];
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresInSeconds);
+
+  if (error || !data) {
+    console.warn(`Failed to generate signed URL for ${path} in ${bucket}:`, error);
+    return fullUrlOrPath;
+  }
+  return data.signedUrl;
+};
