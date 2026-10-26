@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import type { Speaker } from "../types/workshop";
+import { isPaidMentor, getStartingPrice } from "../lib/mentorPricing";
 import { 
   ChevronLeft, 
   Building2, 
@@ -20,6 +21,7 @@ interface SpeakerProfileProps {
 
 export const SpeakerProfile: React.FC<SpeakerProfileProps> = ({ id, setActiveTab }) => {
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
+  const [linkedMentor, setLinkedMentor] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,16 @@ export const SpeakerProfile: React.FC<SpeakerProfileProps> = ({ id, setActiveTab
           setError("Speaker not found or profile is unpublished.");
         } else {
           setSpeaker(data as Speaker);
+          if (data.mentor_id) {
+            const { data: mData } = await supabase
+              .from("mentors")
+              .select("id, full_name, pricing, is_paid")
+              .eq("id", data.mentor_id)
+              .maybeSingle();
+            if (mData) {
+              setLinkedMentor(mData);
+            }
+          }
         }
       } catch (err: any) {
         console.error("Unexpected error:", err);
@@ -192,6 +204,27 @@ export const SpeakerProfile: React.FC<SpeakerProfileProps> = ({ id, setActiveTab
                   </span>
                 )}
               </div>
+
+              {/* Linked Paid Mentor 1-on-1 Booking CTA */}
+              {speaker.mentor_id && linkedMentor && isPaidMentor(linkedMentor) && (
+                <div className="pt-4 border-t border-[rgba(255,255,255,0.08)] flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => setActiveTab(`mentor-profile/${speaker.mentor_id}`)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    style={{
+                      background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)",
+                    }}
+                  >
+                    <Sparkles size={16} />
+                    Book a 1-on-1 session
+                  </button>
+                  {getStartingPrice(linkedMentor.pricing) && (
+                    <span className="text-sm font-semibold text-[#FF9D2E]">
+                      From ₹{getStartingPrice(linkedMentor.pricing)?.price}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

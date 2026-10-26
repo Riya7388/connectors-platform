@@ -22,6 +22,7 @@ export interface Speaker {
   areas_of_expertise: string[];
   mentoring_note?: string | null;
   is_published: boolean;
+  mentor_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }

@@ -20,6 +20,8 @@ import type {
 } from "../types/polls";
 import { FileUpload } from "../components/FileUpload";
 import { getSignedUrl } from "../lib/storage";
+import { AdminPaidSpeakers } from "../components/admin/AdminPaidSpeakers";
+import { AdminPayouts } from "../components/admin/AdminPayouts";
 import { 
   Plus, 
   Edit3, 
@@ -68,6 +70,7 @@ interface SpeakerFormData {
   headline: string;
   photo_url: string;
   speaker_type: SpeakerType;
+  mentor_id: string;
   batch_year: string;
   branch: string;
   current_role: string;
@@ -85,6 +88,7 @@ const initialSpeakerFormData: SpeakerFormData = {
   headline: "",
   photo_url: "",
   speaker_type: "alumni",
+  mentor_id: "",
   batch_year: "",
   branch: "",
   current_role: "",
@@ -156,7 +160,10 @@ const initialPollFormData: PollFormData = {
 };
 
 export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
-  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls" | "recently-edited">("sessions");
+  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls" | "recently-edited" | "paid-speakers" | "payouts">("sessions");
+  
+  // Paid mentors list for linking to speaker profiles
+  const [paidMentorsList, setPaidMentorsList] = useState<{ id: string; full_name: string }[]>([]);
   
   // Recently Edited Mentors State
   const [recentlyEditedMentors, setRecentlyEditedMentors] = useState<any[]>([]);
@@ -280,6 +287,17 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
 
       if (error) throw error;
       setSpeakers((data as Speaker[]) || []);
+
+      // Fetch approved paid mentors for dropdown
+      const { data: mentorsData } = await supabase
+        .from("mentors")
+        .select("id, full_name")
+        .eq("is_paid", true)
+        .order("full_name", { ascending: true });
+
+      if (mentorsData) {
+        setPaidMentorsList(mentorsData);
+      }
     } catch (err: any) {
       console.error("Error fetching speakers:", err);
       setErrorMsg("Failed to load speakers.");
@@ -642,6 +660,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
       headline: speaker.headline || "",
       photo_url: speaker.photo_url || "",
       speaker_type: speaker.speaker_type || "alumni",
+      mentor_id: speaker.mentor_id || "",
       batch_year: speaker.batch_year || "",
       branch: speaker.branch || "",
       current_role: speaker.current_role || "",
@@ -722,6 +741,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
         headline: speakerFormData.headline.trim() || null,
         photo_url: speakerFormData.photo_url || null,
         speaker_type: speakerFormData.speaker_type,
+        mentor_id: speakerFormData.mentor_id || null,
         batch_year: speakerFormData.batch_year.trim() || null,
         branch: speakerFormData.branch.trim() || null,
         current_role: speakerFormData.current_role.trim() || null,
@@ -1068,6 +1088,26 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               >
                 <Edit3 size={14} /> Recently Edited Profiles ({recentlyEditedMentors.length})
               </button>
+              <button
+                onClick={() => setAdminSection("paid-speakers")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "paid-speakers"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <Sparkles size={14} className="text-[#FF9D2E]" /> Paid Speakers
+              </button>
+              <button
+                onClick={() => setAdminSection("payouts")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "payouts"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <IndianRupee size={14} className="text-emerald-400" /> Payouts
+              </button>
             </div>
 
             {adminSection === "sessions" ? (
@@ -1125,7 +1165,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 <Clock size={16} />
                 Refresh
               </button>
-            ) : (
+            ) : adminSection === "registrations" ? (
               <button
                 onClick={handleExportCSV}
                 disabled={filteredRegistrations.length === 0}
@@ -1137,7 +1177,7 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 <Download size={18} />
                 Export CSV
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -2320,6 +2360,20 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PAID SPEAKERS SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "paid-speakers" && (
+          <AdminPaidSpeakers onMentorsUpdated={fetchSpeakers} />
+        )}
+
+        {/* ========================================================================= */}
+        {/* PAYOUTS SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "payouts" && (
+          <AdminPayouts />
         )}
 
         {/* ========================================================================= */}

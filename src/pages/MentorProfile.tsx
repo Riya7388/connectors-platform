@@ -12,13 +12,16 @@ import {
   Clock,
   Check,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { FREE_MODE, FREE_MODE_DURATIONS } from "../lib/config";
 import { toTitleCase, getInitials } from "../lib/formatters";
+import { isPaidMentor, getStartingPrice } from "../lib/mentorPricing";
 
 interface Mentor {
   id: string;
   user_id: string;
+  is_paid?: boolean | null;
   full_name: string;
   college_name: string;
   branch: string;
@@ -184,7 +187,11 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       rawDurations = ["15 min", "30 min"];
     }
 
-    if (FREE_MODE) {
+    const isPaid = isPaidMentor(m);
+
+    // Free mentors in FREE_MODE are limited to FREE_MODE_DURATIONS (15 and 30 min).
+    // Paid speaker-mentors are NOT limited to FREE_MODE_DURATIONS.
+    if (!isPaid && FREE_MODE) {
       rawDurations = rawDurations.filter((durStr) => {
         const mins = parseInt(durStr);
         return FREE_MODE_DURATIONS.includes(mins);
@@ -200,8 +207,10 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       const mins = parseInt(durStr);
       const label = mins >= 60 ? `${mins / 60} Hour${mins > 60 ? "s" : ""}` : `${mins} min`;
       const priceVal = m.pricing?.[durStr] || m.pricing?.[`${mins} min`];
-      const isFree = mins === 15 && m.free_intro_session;
-      const priceText = FREE_MODE ? "" : isFree ? "Free Intro" : priceVal ? `₹${priceVal}` : "Custom";
+      const isFree = !isPaid && mins === 15 && m.free_intro_session;
+      const priceText = isPaid
+        ? (priceVal ? `₹${priceVal}` : "Paid")
+        : (FREE_MODE ? "Free" : (isFree ? "Free Intro" : (priceVal ? `₹${priceVal}` : "Custom")));
       return { durStr, mins: String(mins), label, priceText };
     });
   };
@@ -332,7 +341,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
   const parsedMilestones = parseMilestones(mentor.milestones);
 
   // Pricing info
-  const isFree = FREE_MODE || (mentor.pricing && Object.keys(mentor.pricing).length === 0);
+  const isFree = !isPaidMentor(mentor);
 
   return (
     <div className="min-h-screen bg-[#09090B] text-[#FFFFFF] pb-24 relative overflow-x-hidden">
@@ -653,6 +662,37 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
                 </div>
               )}
 
+              {/* Personal Guidance Block (for paid mentors) */}
+              {isPaidMentor(mentor) && (
+                <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#FF2D8F] flex items-center gap-1.5">
+                      <Sparkles size={13} />
+                      Personal Guidance
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                      Paid Sessions
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {getAvailableDurations(mentor).map((opt) => (
+                      <div
+                        key={opt.mins}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-[#141417] border border-[rgba(255,255,255,0.06)]"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock size={13} className="text-[#A1A1AA]" />
+                          <span className="text-xs font-medium text-white">{opt.label}</span>
+                        </div>
+                        <span className="text-xs font-extrabold text-[#FF9D2E]">
+                          {opt.priceText}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Repeat Gradient CTA Button */}
               <button
                 onClick={handleConnectClick}
@@ -720,9 +760,15 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       <div className="fixed bottom-0 left-0 right-0 z-40 p-3.5 bg-[#141417]/95 backdrop-blur-md border-t border-[rgba(255,255,255,0.08)] md:hidden flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase font-bold text-[#71717A]">Session</p>
-          <p className="font-poppins font-extrabold text-base brand-gradient-text">
-            {isFree ? "FREE" : `₹${Object.values(mentor.pricing || {})[0] || "99"}`}
-          </p>
+          {isPaidMentor(mentor) ? (
+            <p className="font-poppins font-extrabold text-base text-white">
+              From ₹{getStartingPrice(mentor.pricing)?.price}
+            </p>
+          ) : (
+            <p className="font-poppins font-extrabold text-base brand-gradient-text">
+              FREE
+            </p>
+          )}
         </div>
         <button
           onClick={handleConnectClick}
@@ -770,7 +816,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
                   >
                     <p className="font-semibold text-sm">{opt.label}</p>
                     <p className="text-[11px] text-[#FF9D2E] font-medium mt-0.5">
-                      {FREE_MODE ? "Free" : opt.priceText}
+                      {isPaidMentor(mentor) ? opt.priceText : (FREE_MODE ? "Free" : opt.priceText)}
                     </p>
                   </button>
                 ))}

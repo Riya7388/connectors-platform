@@ -18,6 +18,7 @@ interface RecommendedMentor {
   bio: string;
   availability_time: string | null;
   starting_price_inr?: number | null;
+  is_paid?: boolean;
 }
 
 interface Message {
@@ -273,15 +274,15 @@ export const MentorGenieChat: React.FC<MentorGenieChatProps> = ({ setActiveTab }
                                   </div>
 
                                   {/* Badges: Free pill / Price */}
-                                  {FREE_MODE ? (
+                                  {mentor.is_paid && mentor.starting_price_inr ? (
+                                    <span className="text-[10px] font-semibold text-primary flex-shrink-0">
+                                      From ₹{mentor.starting_price_inr}
+                                    </span>
+                                  ) : (
                                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/15 text-green-400 border border-green-500/20 flex-shrink-0">
                                       Free
                                     </span>
-                                  ) : mentor.starting_price_inr ? (
-                                    <span className="text-[10px] font-semibold text-primary flex-shrink-0">
-                                      ₹{mentor.starting_price_inr}
-                                    </span>
-                                  ) : null}
+                                  )}
                                 </div>
 
                                 {/* College + Branch */}

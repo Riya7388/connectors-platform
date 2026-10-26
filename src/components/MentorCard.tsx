@@ -1,11 +1,13 @@
 import React from "react";
 import { ShieldCheck, Trophy, Globe, Check } from "lucide-react";
-import { toTitleCase, getDeterministicGradientAngle, getInitials } from "../lib/formatters";
+import { toTitleCase, getInitials } from "../lib/formatters";
 import { FREE_MODE } from "../lib/config";
+import { isPaidMentor, getStartingPrice } from "../lib/mentorPricing";
 
 export interface MentorData {
   id: string;
   user_id?: string | null;
+  is_paid?: boolean | null;
   full_name: string;
   college_name?: string;
   branch?: string;
@@ -52,7 +54,6 @@ function getMinPriceInfo(pricing: Record<string, string> | null): { price: numbe
 }
 
 export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
-  const angle = getDeterministicGradientAngle(mentor.id);
   const titleName = toTitleCase(mentor.full_name);
   const initials = getInitials(mentor.full_name);
 
@@ -73,8 +74,10 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
   const visibleExpertise = expertiseList.slice(0, 3);
   const remainingCount = expertiseList.length - 3;
 
-  // Pricing
-  const isFree = FREE_MODE || (mentor.pricing && Object.keys(mentor.pricing).length === 0);
+  // Pricing: check if mentor is a paid speaker-mentor
+  const isPaid = isPaidMentor(mentor);
+  const startingPrice = isPaid ? getStartingPrice(mentor.pricing) : null;
+  const isFree = !isPaid;
   const minPriceInfo = getMinPriceInfo(mentor.pricing || null);
 
   // Exam tag
@@ -98,25 +101,20 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className="group relative flex flex-col justify-between rounded-2xl bg-[#141417] border border-[rgba(255,255,255,0.08)] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(168,85,247,0.35)] hover:shadow-[0_10px_35px_rgba(168,85,247,0.12)] cursor-pointer"
+      style={{
+        border: "1.5px solid transparent",
+        backgroundImage:
+          "linear-gradient(#141417, #141417), linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)",
+        backgroundOrigin: "border-box",
+        backgroundClip: "padding-box, border-box",
+      }}
+      className="group relative flex flex-col justify-between rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 shadow-[0_0_15px_rgba(255,45,143,0.2),0_0_30px_rgba(168,85,247,0.15)] hover:shadow-[0_0_22px_rgba(255,45,143,0.38),0_0_42px_rgba(168,85,247,0.28)] cursor-pointer"
     >
-      {/* 1. Gradient cover band (about 90px), fading into card background */}
-      <div className="relative h-[90px] w-full overflow-hidden shrink-0">
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(${angle}deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)`,
-          }}
-        />
-        {/* Soft fade into card background #141417 */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#141417]/40 to-[#141417]" />
-      </div>
-
       {/* Main Content Area */}
-      <div className="px-5 pb-5 -mt-12 flex-1 flex flex-col justify-between space-y-4">
+      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         {/* Top: Avatar, Name, College */}
         <div>
-          <div className="flex items-end justify-between">
+          <div className="flex items-start justify-between">
             {/* 2. Avatar (92px) with gradient ring */}
             <div className="relative">
               <div className="h-[92px] w-[92px] rounded-full p-[3px] bg-gradient-to-tr from-[#FF9D2E] via-[#FF2D8F] to-[#4F46E5] shadow-xl">
@@ -156,7 +154,7 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
 
             {/* Online Indicator if active */}
             {mentor.is_online && (
-              <span className="mb-2 flex items-center gap-1.5 bg-[#4ADE80]/10 border border-[#4ADE80]/30 text-[#4ADE80] text-[10px] font-semibold px-2.5 py-1 rounded-full">
+              <span className="flex items-center gap-1.5 bg-[#4ADE80]/10 border border-[#4ADE80]/30 text-[#4ADE80] text-[10px] font-semibold px-2.5 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] animate-pulse" />
                 Online
               </span>
@@ -243,7 +241,19 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
         {/* 7. Footer: hairline border, price / languages on left, gradient View Profile on right */}
         <div className="pt-3.5 border-t border-[rgba(255,255,255,0.08)] flex items-center justify-between gap-3 mt-auto">
           <div className="min-w-0">
-            {isFree ? (
+            {isPaid && startingPrice ? (
+              <div>
+                <p className="font-poppins font-extrabold text-base text-[#FFFFFF] tracking-tight">
+                  From ₹{startingPrice.price}
+                </p>
+                {mentor.languages_known && mentor.languages_known.length > 0 && (
+                  <div className="flex items-center gap-1 text-[11px] text-[#A1A1AA] mt-0.5 truncate">
+                    <Globe size={11} className="shrink-0" />
+                    <span className="truncate">{mentor.languages_known.join(", ")}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
               <div>
                 <span className="font-poppins font-extrabold text-base brand-gradient-text tracking-wide">
                   FREE
@@ -253,26 +263,6 @@ export const MentorCard: React.FC<MentorCardProps> = ({ mentor, onClick }) => {
                     <Globe size={11} className="shrink-0" />
                     <span className="truncate">{mentor.languages_known.join(", ")}</span>
                   </div>
-                )}
-              </div>
-            ) : minPriceInfo ? (
-              <div>
-                <p className="font-poppins font-extrabold text-base text-[#FFFFFF] tracking-tight">
-                  ₹{minPriceInfo.price}
-                </p>
-                <p className="text-[10px] text-[#71717A] mt-0.5">
-                  per {minPriceInfo.duration}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <span className="font-poppins font-extrabold text-base brand-gradient-text">
-                  FREE
-                </span>
-                {mentor.languages_known && mentor.languages_known.length > 0 && (
-                  <p className="text-[10px] text-[#A1A1AA] mt-0.5 truncate">
-                    {mentor.languages_known.join(", ")}
-                  </p>
                 )}
               </div>
             )}

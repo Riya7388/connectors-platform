@@ -1007,6 +1007,21 @@ export const BecomeMentor: React.FC = () => {
 
       let saveError;
       if (existingMentor) {
+        // If this mentor is paid: NEVER send pricing, free_intro_session, session_durations, or payout fields
+        if (existingMentor.is_paid || initialMentorData?.is_paid) {
+          delete mentorPayload.pricing;
+          delete mentorPayload.free_intro_session;
+          delete mentorPayload.session_durations;
+          delete mentorPayload.payout_type;
+          delete mentorPayload.bank_account_number;
+          delete mentorPayload.bank_ifsc;
+          delete mentorPayload.bank_account_holder;
+          delete mentorPayload.upi_id;
+        }
+        // Mentors can NEVER update is_paid or commission_percent via self-service
+        delete mentorPayload.is_paid;
+        delete mentorPayload.commission_percent;
+
         const { error } = await supabase
           .from('mentors')
           .update(mentorPayload)
