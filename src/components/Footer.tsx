@@ -83,14 +83,6 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                     Become a Mentor
                   </button>
                 </li>
-                <li>
-                  <button
-                    onClick={() => setActiveTab("compare")}
-                    className="text-gray-400 transition hover:text-orange-400 text-left"
-                  >
-                    Colleges List
-                  </button>
-                </li>
               </ul>
             </div>
 

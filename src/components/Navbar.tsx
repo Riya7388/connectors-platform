@@ -168,7 +168,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "sessions", label: "Sessions" },
     { id: "resources", label: "Resources" },
     { id: "polls", label: "Polls" },
-    { id: "compare", label: "AI Engine" },
     { id: "find-mentor", label: "Mentors" },
     { id: "become-mentor", label: hasMentorRow ? "Edit Profile" : "Become Mentor" },
     ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),

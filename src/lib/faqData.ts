@@ -51,6 +51,6 @@ export const FAQ_DATA: FAQItem[] = [
     id: 8,
     question: "Can the AI tools make mistakes?",
     answer:
-      "Yes. Mentor Genie and the college comparison tool are meant to help you explore options, but they can be incomplete or wrong. College data such as fees and placements may be estimates, so please verify it from official sources.",
+      "Yes. Mentor Genie is meant to help you explore options, but it can be incomplete or wrong. College data such as fees and placements may be estimates, so please verify it from official sources.",
   },
 ];

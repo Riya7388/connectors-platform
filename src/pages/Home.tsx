@@ -133,9 +133,9 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
                     <div className="w-12 h-12 bg-secondary-container/10 rounded-xl flex items-center justify-center text-secondary-fixed-dim mb-2">
                       <Sparkles size={24} />
                     </div>
-                    <h3 className="text-xl font-bold">AI-Powered College Comparison</h3>
+                    <h3 className="text-xl font-bold">Mentor Genie AI Matching</h3>
                     <p className="text-on-surface-variant text-sm leading-relaxed">
-                      Compare engineering colleges side-by-side with real placement data, NIRF rankings, and semantic insights.
+                      Tell Mentor Genie your goal in English, Hindi or Hinglish and get matched with mentors whose experience fits.
                     </p>
                   </div>
                   <div className="glass-card p-8 rounded-2xl border border-white/5 space-y-4 w-80 md:w-[26rem] flex-shrink-0 whitespace-normal hover:-translate-y-2 hover:shadow-tertiary/20 hover:border-tertiary/50 hover:bg-tertiary/5 transition-all duration-300 neon-glow-hover cursor-default">

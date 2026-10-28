@@ -3,7 +3,6 @@ import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { MentorGenieChat } from "./components/MentorGenieChat";
 import { Home } from "./pages/Home";
-import { Compare } from "./pages/Compare";
 import { FindMentor } from "./pages/FindMentor";
 import { BecomeMentor } from "./pages/BecomeMentor";
 import { MentorProfile } from "./pages/MentorProfile";
@@ -121,8 +120,6 @@ function App() {
     switch (activeTab) {
       case "home":
         return <Home setActiveTab={handleSetActiveTab} />;
-      case "compare":
-        return <Compare />;
       case "find-mentor":
         return <FindMentor setActiveTab={handleSetActiveTab} />;
       case "become-mentor":

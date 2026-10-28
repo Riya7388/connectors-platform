@@ -31,7 +31,9 @@ import {
   Phone,
   User,
   HelpCircle,
-  GraduationCap
+  GraduationCap,
+  Share2,
+  Check
 } from "lucide-react";
 
 // Admin: replace with the live Google Form URL
@@ -70,6 +72,79 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
   // Toast / Status notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Speaker row guided hand hint (dismissed permanently on tap or close)
+  const [showSpeakerHint, setShowSpeakerHint] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem("connectors_speaker_hint_seen");
+    } catch {
+      return true;
+    }
+  });
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((curr) => (curr === msg ? null : curr));
+    }, 2500);
+  };
+
+  const dismissSpeakerHint = () => {
+    setShowSpeakerHint(false);
+    try {
+      localStorage.setItem("connectors_speaker_hint_seen", "true");
+    } catch {}
+  };
+
+  const handleSpeakerRowClick = (speakerId?: string) => {
+    if (!speakerId) return;
+    dismissSpeakerHint();
+    setActiveTab(`speaker-profile/${speakerId}`);
+  };
+
+  const handleShareSpeaker = async (
+    e: React.MouseEvent,
+    speaker: { id: string; full_name: string }
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const shareUrl = `${window.location.origin}/#speaker-profile/${speaker.id}`;
+    const shareTitle = `${speaker.full_name} on Connectors`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareTitle,
+          url: shareUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      showToast("Link copied");
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+    }
+  };
 
   useEffect(() => {
     fetchUserDataAndSessions();
@@ -521,6 +596,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
   const upcomingSessions = sessions.filter((s) => !isPast(s));
   const pastSessions = sessions.filter((s) => isPast(s));
+  const firstSpeakerSessionId = upcomingSessions.find((s) => !!s.speaker)?.id || sessions.find((s) => !!s.speaker)?.id;
 
   const renderSessionCard = (session: WorkshopSession, isDimmed = false) => {
     const isFreeForAll = session.access_type === "free_for_all";
@@ -529,6 +605,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
     const sessionIsPast = isPast(session);
     const count = registrationCounts[session.id] || 0;
     const isFull = !!(session.capacity && count >= session.capacity);
+    const isFirstCardWithSpeaker = session.id === firstSpeakerSessionId;
 
     return (
       <div
@@ -612,40 +689,104 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
             {/* Speaker Mini Row */}
             {session.speaker ? (
-              <div
-                onClick={() => setActiveTab(`speaker-profile/${session.speaker?.id}`)}
-                className="flex items-center gap-3 p-3 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.2)] transition-all cursor-pointer group"
-              >
-                <div 
-                  className="w-10 h-10 rounded-full p-[1.5px] shrink-0"
-                  style={{
-                    background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
-                  }}
-                >
-                  <div className="w-full h-full rounded-full overflow-hidden bg-[#141417] flex items-center justify-center">
-                    {session.speaker.photo_url ? (
-                      <img
-                        src={session.speaker.photo_url}
-                        alt={session.speaker.full_name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-[#A855F7]">
-                        {session.speaker.full_name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
+              <div className="relative">
+                {/* Hand Hint (first card with speaker only) */}
+                {showSpeakerHint && isFirstCardWithSpeaker && (
+                  <div
+                    role="tooltip"
+                    className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] shadow-sm text-xs text-white w-fit max-w-full"
+                  >
+                    <span className="speaker-hand-tap inline-flex items-center justify-center shrink-0" aria-hidden="true">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="url(#speaker-hand-gradient)"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-3.5 h-3.5"
+                      >
+                        <defs>
+                          <linearGradient id="speaker-hand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#FF9D2E" />
+                            <stop offset="38%" stopColor="#FF2D8F" />
+                            <stop offset="70%" stopColor="#A855F7" />
+                            <stop offset="100%" stopColor="#4F46E5" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M22 14a8 8 0 0 1-8 8" />
+                        <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+                        <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
+                        <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
+                        <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+                      </svg>
+                    </span>
+                    <span className="text-[11px] font-medium text-zinc-200 truncate">
+                      See speaker profile
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dismissSpeakerHint();
+                      }}
+                      className="p-0.5 -mr-0.5 text-zinc-400 hover:text-white rounded-full transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+                      aria-label="Dismiss hint"
+                      title="Dismiss"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
-                </div>
+                )}
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-sm font-bold text-white truncate group-hover:text-[#A855F7] transition-colors">
-                      {session.speaker.full_name}
-                    </h4>
+                <div
+                  onClick={() => handleSpeakerRowClick(session.speaker?.id)}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.2)] transition-all cursor-pointer group"
+                >
+                  <div 
+                    className="w-10 h-10 rounded-full p-[1.5px] shrink-0"
+                    style={{
+                      background: "linear-gradient(135deg, #FF9D2E 0%, #FF2D8F 38%, #A855F7 70%, #4F46E5 100%)"
+                    }}
+                  >
+                    <div className="w-full h-full rounded-full overflow-hidden bg-[#141417] flex items-center justify-center">
+                      {session.speaker.photo_url ? (
+                        <img
+                          src={session.speaker.photo_url}
+                          alt={session.speaker.full_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-[#A855F7]">
+                          {session.speaker.full_name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-[#A1A1AA] truncate">
-                    {session.speaker.headline || session.speaker.current_company || "Speaker"}
-                  </p>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-white truncate group-hover:text-[#A855F7] transition-colors">
+                        {session.speaker.full_name}
+                      </h4>
+                    </div>
+                    <p className="text-xs text-[#A1A1AA] truncate">
+                      {session.speaker.headline || session.speaker.current_company || "Speaker"}
+                    </p>
+                  </div>
+
+                  {/* Share button */}
+                  <button
+                    type="button"
+                    title="Share speaker profile"
+                    aria-label={`Share ${session.speaker.full_name}'s profile`}
+                    onClick={(e) => handleShareSpeaker(e, session.speaker!)}
+                    className="p-2 rounded-lg text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors shrink-0 cursor-pointer"
+                  >
+                    <Share2 size={16} />
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -1097,6 +1238,26 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
           </div>
         </div>
       )}
+
+      {/* Hand Hint Animation Styles */}
+      <style>{`
+        @keyframes speakerHandTap {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+          }
+          50% {
+            transform: translateY(2.5px) scale(0.96);
+          }
+        }
+        .speaker-hand-tap {
+          animation: speakerHandTap 1.2s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .speaker-hand-tap {
+            animation: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -160,7 +160,7 @@ export const Terms: React.FC<TermsProps> = ({ setActiveTab }) => {
               11. Information, Estimates and AI Features
             </h2>
             <p>
-              Information about colleges, fees, placements and rankings shown on Connectors is for general guidance only. It may be an estimate or may be out of date, and users should verify it from official sources before making decisions. Connectors also offers AI-powered features (such as Mentor Genie and the college comparison tool). AI responses can be incomplete or wrong and should not be treated as professional or official advice.
+              Information about colleges, fees, placements and rankings shown on Connectors is for general guidance only. It may be an estimate or may be out of date, and users should verify it from official sources before making decisions. Connectors also offers AI-powered features (such as Mentor Genie). AI responses can be incomplete or wrong and should not be treated as professional or official advice.
             </p>
           </section>
 
