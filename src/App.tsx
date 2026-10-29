@@ -183,6 +183,8 @@ function App() {
     activeTab === "terms" ||
     activeTab === "faq" ||
     activeTab === "resources" ||
+    activeTab === "find-mentor" ||
+    activeTab.startsWith("mentor-profile/") ||
     activeTab.startsWith("speaker-profile/");
 
   // No session → if viewing a public route, render public shell; otherwise full-screen auth

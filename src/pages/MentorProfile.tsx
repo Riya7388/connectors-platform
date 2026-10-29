@@ -122,11 +122,48 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
     const fetchMentor = async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from("mentors")
-        .select("*")
+        .from("mentors_public")
+        .select(`
+          id,
+          user_id,
+          is_paid,
+          full_name,
+          profile_photo_url,
+          college_name,
+          branch,
+          graduation_year,
+          exam_category,
+          exam_branch,
+          current_organization,
+          years_of_experience,
+          ca_stage,
+          upsc_stage,
+          target_exam,
+          target_college,
+          other_exam,
+          bio,
+          pricing,
+          verified,
+          areas_of_expertise,
+          languages_known,
+          free_intro_session,
+          rating,
+          city,
+          is_online,
+          last_online_at,
+          availability_time,
+          achievements,
+          goals,
+          mentor_tag,
+          mentor_tag_other,
+          expertise_other,
+          session_durations,
+          top_achievement,
+          journey_tags,
+          help_statement,
+          milestones
+        `)
         .eq("id", id)
-        .eq("application_status", "approved")
-        .eq("verified", true)
         .maybeSingle();
 
       if (error) {
@@ -217,8 +254,12 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
 
   const handleConnectClick = async () => {
     if (!currentUser) {
-      setNotification({ message: "Please log in to connect with mentors.", type: "error" });
-      setTimeout(() => setActiveTab("auth"), 1200);
+      try {
+        localStorage.setItem("auth_return_hash", window.location.hash || `#mentor-profile/${mentor.id}`);
+      } catch (e) {
+        console.error("Failed to store return hash", e);
+      }
+      setActiveTab("auth");
       return;
     }
     if (currentUser.id === mentor.user_id) {

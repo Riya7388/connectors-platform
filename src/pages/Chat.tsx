@@ -52,6 +52,11 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       setCurrentUser(user);
 
       if (!user) {
+        try {
+          localStorage.setItem("auth_return_hash", window.location.hash || `#chat/${id}`);
+        } catch (e) {
+          console.error("Failed to store return hash", e);
+        }
         setActiveTab("auth");
         return;
       }
@@ -71,7 +76,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
       // Fetch mentor details manually
       const { data: mentorData, error: mentorErr } = await supabase
-        .from("mentors")
+        .from("mentors_public")
         .select("id, user_id, full_name, profile_photo_url, free_intro_session, pricing, session_durations")
         .eq("id", reqData.mentor_id)
         .single();

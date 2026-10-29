@@ -31,9 +31,9 @@ import { MentorCard } from "../components/MentorCard";
 interface Mentor {
   id: string;
   user_id: string | null;
-  college_id: string | null;
+  college_id?: string | null;
+  is_paid?: boolean | null;
   full_name: string;
-  personal_email: string;
   college_name: string;
   branch: string;
   exam_category?: string;
@@ -46,9 +46,7 @@ interface Mentor {
   target_college?: string;
   other_exam?: string;
   graduation_year: number;
-  bio: string;
-  experience: string;
-  linkedin_url: string;
+  bio?: string | null;
   pricing: Record<string, string> | null;
   profile_photo_url: string;
   verified: boolean;
@@ -439,7 +437,40 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
 
       // Fetch mentors, branches, and master colleges list in parallel
       const [mentorRes, branchRes, collegesRes] = await Promise.all([
-        supabase.from("mentors").select("*").eq('application_status', 'approved').eq('verified', true).order("id", { ascending: true }),
+        supabase
+          .from("mentors_public")
+          .select(`
+            id,
+            user_id,
+            is_paid,
+            full_name,
+            profile_photo_url,
+            college_name,
+            branch,
+            graduation_year,
+            exam_category,
+            exam_branch,
+            target_college,
+            target_exam,
+            other_exam,
+            ca_stage,
+            upsc_stage,
+            current_organization,
+            years_of_experience,
+            verified,
+            rating,
+            areas_of_expertise,
+            expertise_other,
+            languages_known,
+            pricing,
+            session_durations,
+            free_intro_session,
+            is_online,
+            last_online_at,
+            top_achievement,
+            journey_tags
+          `)
+          .order("id", { ascending: true }),
         supabase.from("branches").select("name").order("name", { ascending: true }),
         supabase.from("colleges").select("name").order("name", { ascending: true }),
       ]);

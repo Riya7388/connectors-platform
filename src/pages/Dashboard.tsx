@@ -35,7 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setActiveTab }) => {
       if (studentRequests && studentRequests.length > 0) {
         const mentorIds = [...new Set(studentRequests.map((req: any) => req.mentor_id))];
         const { data: mentorsData } = await supabase
-          .from("mentors")
+          .from("mentors_public")
           .select("id, full_name, profile_photo_url")
           .in("id", mentorIds);
           

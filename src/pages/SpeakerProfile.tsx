@@ -98,7 +98,7 @@ export const SpeakerProfile: React.FC<SpeakerProfileProps> = ({ id, setActiveTab
           setSpeaker(data as Speaker);
           if (data.mentor_id) {
             const { data: mData } = await supabase
-              .from("mentors")
+              .from("mentors_public")
               .select("id, full_name, pricing, is_paid")
               .eq("id", data.mentor_id)
               .maybeSingle();

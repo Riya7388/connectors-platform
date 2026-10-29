@@ -139,29 +139,17 @@ export const Compare: React.FC = () => {
 
       // Fetch Mentor Counts
       const { count: count1 } = await supabase
-        .from('mentors')
-        .select('*', { count: 'exact', head: true })
-        .eq('college', c1.name)
-        .eq('verified', true)
-        .eq('application_status', 'approved');
+        .from('mentors_public')
+        .select('id', { count: 'exact', head: true })
+        .eq('college_name', c1.name);
 
       const { count: count2 } = await supabase
-        .from('mentors')
-        .select('*', { count: 'exact', head: true })
-        .eq('college', c2.name)
-        .eq('verified', true)
-        .eq('application_status', 'approved');
+        .from('mentors_public')
+        .select('id', { count: 'exact', head: true })
+        .eq('college_name', c2.name);
 
-      // Fallback in case application_status doesn't exist, we try without it
       let finalCount1 = count1 || 0;
       let finalCount2 = count2 || 0;
-
-      if (count1 === null && count2 === null) {
-        const { count: count1Fallback } = await supabase.from('mentors').select('*', { count: 'exact', head: true }).eq('college', c1.name).eq('verified', true);
-        const { count: count2Fallback } = await supabase.from('mentors').select('*', { count: 'exact', head: true }).eq('college', c2.name).eq('verified', true);
-        finalCount1 = count1Fallback || 0;
-        finalCount2 = count2Fallback || 0;
-      }
 
       setMentorCount1(finalCount1);
       setMentorCount2(finalCount2);
