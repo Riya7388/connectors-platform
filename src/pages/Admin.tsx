@@ -22,6 +22,7 @@ import { FileUpload } from "../components/FileUpload";
 import { getSignedUrl } from "../lib/storage";
 import { AdminPaidSpeakers } from "../components/admin/AdminPaidSpeakers";
 import { AdminPayouts } from "../components/admin/AdminPayouts";
+import { AdminRequests } from "../components/admin/AdminRequests";
 import { 
   Plus, 
   Edit3, 
@@ -54,7 +55,8 @@ import {
   Archive,
   Trophy,
   Check,
-  MessageSquare
+  MessageSquare,
+  Inbox
 } from "lucide-react";
 
 interface AdminProps {
@@ -160,7 +162,7 @@ const initialPollFormData: PollFormData = {
 };
 
 export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
-  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls" | "recently-edited" | "paid-speakers" | "payouts">("sessions");
+  const [adminSection, setAdminSection] = useState<"speakers" | "sessions" | "registrations" | "polls" | "recently-edited" | "paid-speakers" | "payouts" | "requests">("sessions");
   
   // Paid mentors list for linking to speaker profiles
   const [paidMentorsList, setPaidMentorsList] = useState<{ id: string; full_name: string }[]>([]);
@@ -1107,6 +1109,16 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
                 }`}
               >
                 <IndianRupee size={14} className="text-emerald-400" /> Payouts
+              </button>
+              <button
+                onClick={() => setAdminSection("requests")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  adminSection === "requests"
+                    ? "bg-[#1C1C21] text-white border border-[rgba(255,255,255,0.12)] shadow-sm"
+                    : "text-[#A1A1AA] hover:text-white"
+                }`}
+              >
+                <Inbox size={14} className="text-[#FF2D8F]" /> Requests
               </button>
             </div>
 
@@ -2374,6 +2386,13 @@ export const Admin: React.FC<AdminProps> = ({ setActiveTab, isAdmin }) => {
         {/* ========================================================================= */}
         {adminSection === "payouts" && (
           <AdminPayouts />
+        )}
+
+        {/* ========================================================================= */}
+        {/* REQUESTS SECTION */}
+        {/* ========================================================================= */}
+        {adminSection === "requests" && (
+          <AdminRequests />
         )}
 
         {/* ========================================================================= */}
