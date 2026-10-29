@@ -99,6 +99,17 @@ function App() {
 
       // Post-login redirect on explicit sign-in event only (do not disrupt reloaded/resumed tabs on INITIAL_SESSION)
       if (event === "SIGNED_IN" && session?.user) {
+        // If the user was redirected here from a public page action, send them back
+        const returnHash = localStorage.getItem("auth_return_hash");
+        if (returnHash) {
+          localStorage.removeItem("auth_return_hash");
+          const tab = returnHash.replace(/^#\/?/, "");
+          if (tab) {
+            handleSetActiveTab(tab);
+            return;
+          }
+        }
+
         const { data: mentors } = await supabase
           .from("mentors")
           .select("application_status")
@@ -164,8 +175,15 @@ function App() {
     );
   }
 
-  // Public routes accessible without session
-  const isPublicRoute = activeTab === "terms" || activeTab === "faq" || activeTab === "resources";
+  // Public routes accessible without session (view-only)
+  const isPublicRoute =
+    activeTab === "home" ||
+    activeTab === "sessions" ||
+    activeTab === "polls" ||
+    activeTab === "terms" ||
+    activeTab === "faq" ||
+    activeTab === "resources" ||
+    activeTab.startsWith("speaker-profile/");
 
   // No session → if viewing a public route, render public shell; otherwise full-screen auth
   if (!session) {

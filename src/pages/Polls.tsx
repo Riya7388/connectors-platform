@@ -164,7 +164,9 @@ export const Polls: React.FC<PollsProps> = ({ setActiveTab }) => {
   // ---------------------------------------------------------------------------
   const handleVoteSubmit = async (poll: PollWithOptions) => {
     if (!currentUser) {
-      setError("Please sign in to vote in polls.");
+      const returnHash = window.location.hash || "#polls";
+      localStorage.setItem("auth_return_hash", returnHash);
+      setActiveTab("auth");
       return;
     }
 
@@ -238,7 +240,9 @@ export const Polls: React.FC<PollsProps> = ({ setActiveTab }) => {
   const handleSuggestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      setSuggestionError("Please sign in to suggest workshop topics.");
+      const returnHash = window.location.hash || "#polls";
+      localStorage.setItem("auth_return_hash", returnHash);
+      setActiveTab("auth");
       return;
     }
 

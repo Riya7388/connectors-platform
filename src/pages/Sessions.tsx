@@ -229,6 +229,13 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
   };
 
   const handleOpenRegisterModal = (session: WorkshopSession) => {
+    // Anon user — send to auth and remember where they were
+    if (!currentUser) {
+      const returnHash = window.location.hash || "#sessions";
+      localStorage.setItem("auth_return_hash", returnHash);
+      setActiveTab("auth");
+      return;
+    }
     setSelectedSession(session);
     setFormError(null);
     setFormSuccess(null);
