@@ -696,58 +696,7 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
 
             {/* Speaker Mini Row */}
             {session.speaker ? (
-              <div className="relative">
-                {/* Hand Hint (first card with speaker only) */}
-                {showSpeakerHint && isFirstCardWithSpeaker && (
-                  <div
-                    role="tooltip"
-                    className="flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] shadow-sm text-xs text-white w-fit max-w-full"
-                  >
-                    <span className="speaker-hand-tap inline-flex items-center justify-center shrink-0" aria-hidden="true">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="url(#speaker-hand-gradient)"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-3.5 h-3.5"
-                      >
-                        <defs>
-                          <linearGradient id="speaker-hand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#FF9D2E" />
-                            <stop offset="38%" stopColor="#FF2D8F" />
-                            <stop offset="70%" stopColor="#A855F7" />
-                            <stop offset="100%" stopColor="#4F46E5" />
-                          </linearGradient>
-                        </defs>
-                        <path d="M22 14a8 8 0 0 1-8 8" />
-                        <path d="M18 11v-1a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
-                        <path d="M14 10V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1" />
-                        <path d="M10 9.5V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v10" />
-                        <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-                      </svg>
-                    </span>
-                    <span className="text-[11px] font-medium text-zinc-200 truncate">
-                      See speaker profile
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        dismissSpeakerHint();
-                      }}
-                      className="p-0.5 -mr-0.5 text-zinc-400 hover:text-white rounded-full transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-                      aria-label="Dismiss hint"
-                      title="Dismiss"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
-
+              <div>
                 <div
                   onClick={() => handleSpeakerRowClick(session.speaker?.id)}
                   className="flex items-center gap-3 p-3 rounded-xl bg-[#1C1C21] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.2)] transition-all cursor-pointer group"
@@ -795,6 +744,27 @@ export const Sessions: React.FC<SessionsProps> = ({ setActiveTab }) => {
                     <Share2 size={16} />
                   </button>
                 </div>
+
+                {/* Bobbing hand hint — below the speaker card, first card with speaker only */}
+                {showSpeakerHint && isFirstCardWithSpeaker && (
+                  <button
+                    type="button"
+                    onClick={() => handleSpeakerRowClick(session.speaker?.id)}
+                    aria-label="See speaker profile"
+                    className="mt-2 flex items-center gap-2 w-full cursor-pointer group select-none"
+                  >
+                    <span
+                      className="animate-speaker-bob inline-flex items-center justify-center shrink-0"
+                      aria-hidden="true"
+                      style={{ fontSize: "36px", lineHeight: 1 }}
+                    >
+                      👆
+                    </span>
+                    <span className="text-sm font-semibold text-white group-hover:text-[#A855F7] transition-colors leading-tight">
+                      See speaker profile
+                    </span>
+                  </button>
+                )}
               </div>
             ) : null}
 

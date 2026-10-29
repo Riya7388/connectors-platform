@@ -155,3 +155,19 @@
   animation: marquee-right 30s linear infinite;
 }
 
+/* ---- Speaker-hint bobbing hand ---- */
+@keyframes speaker-bob {
+  0%,  100% { transform: translateY(0); }
+  45%        { transform: translateY(-7px); }
+}
+
+.animate-speaker-bob {
+  animation: speaker-bob 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-speaker-bob {
+    animation: none;
+  }
+}
+
