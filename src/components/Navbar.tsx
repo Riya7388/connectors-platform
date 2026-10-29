@@ -28,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [hasMentorRow, setHasMentorRow] = useState(false);
   const [mentorApplicationStatus, setMentorApplicationStatus] = useState<string | null>(null);
   const [noticePopupOpen, setNoticePopupOpen] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
 
   useEffect(() => {
     // Get initial session
@@ -69,20 +70,60 @@ export const Navbar: React.FC<NavbarProps> = ({
         if (approvedMentor) {
           setIsMentor(true);
           setMentorProfile(approvedMentor);
+
+          // Fetch pending requests count cheaply for mentor
+          const { count } = await supabase
+            .from("booking_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("mentor_id", approvedMentor.id)
+            .eq("status", "pending");
+          setPendingRequestsCount(count || 0);
         } else {
           setIsMentor(false);
           setMentorProfile(null);
+          setPendingRequestsCount(0);
         }
       } else {
         setHasMentorRow(false);
         setMentorApplicationStatus(null);
         setIsMentor(false);
         setMentorProfile(null);
+        setPendingRequestsCount(0);
       }
     };
 
     checkMentorStatus();
   }, [user]);
+
+  // Realtime updates for pending requests count
+  useEffect(() => {
+    if (!mentorProfile?.id) return;
+
+    const channel = supabase
+      .channel(`mentor_pending_requests_${mentorProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'booking_requests',
+          filter: `mentor_id=eq.${mentorProfile.id}`
+        },
+        async () => {
+          const { count } = await supabase
+            .from("booking_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("mentor_id", mentorProfile.id)
+            .eq("status", "pending");
+          setPendingRequestsCount(count || 0);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [mentorProfile?.id]);
 
   const handleToggleOnline = async (checked: boolean) => {
     if (!mentorProfile) return;
@@ -169,6 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "resources", label: "Resources" },
     { id: "polls", label: "Polls" },
     { id: "find-mentor", label: "Mentors" },
+    ...(user ? [{ id: "dashboard", label: "Dashboard" }] : []),
     { id: "become-mentor", label: hasMentorRow ? "Edit Profile" : "Become Mentor" },
     ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
   ];
@@ -210,13 +252,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={link.id}
                 onClick={() => handleNavClick(link.id)}
-                className={`font-semibold text-sm transition-all duration-200 pb-1 border-b-2 relative group ${
+                className={`font-semibold text-sm transition-all duration-200 pb-1 border-b-2 relative group flex items-center gap-1.5 ${
                   isActive
                     ? "text-primary border-primary"
                     : "text-on-surface-variant dark:text-on-surface-variant/80 border-transparent hover:text-primary hover:border-primary/40"
                 }`}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.id === "dashboard" && isMentor && pendingRequestsCount > 0 && (
+                  <span className="bg-amber-500 text-black text-[10px] font-extrabold px-1.5 py-0.2 rounded-full leading-tight">
+                    {pendingRequestsCount}
+                  </span>
+                )}
                 {/* Subtle glow underline on hover */}
                 {!isActive && (
                   <span className="absolute inset-x-0 -bottom-px h-px bg-primary/0 group-hover:bg-primary/40 transition-all duration-200" />
@@ -334,11 +381,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <LayoutDashboard size={15} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                         Dashboard
                       </div>
-                      {unreadCount > 0 && (
-                        <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                          {unreadCount}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {isMentor && pendingRequestsCount > 0 && (
+                          <div className="bg-amber-500 text-black text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                            {pendingRequestsCount} new
+                          </div>
+                        )}
+                        {unreadCount > 0 && (
+                          <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {unreadCount}
+                          </div>
+                        )}
+                      </div>
                     </button>
 
                     {!hasMentorRow && (
@@ -422,13 +476,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                   handleNavClick(link.id);
                 }}
-                className={`text-left font-semibold text-base py-2 transition-all duration-200 ${
+                className={`text-left font-semibold text-base py-2 transition-all duration-200 flex items-center justify-between ${
                   isActive
                     ? "text-primary pl-2 border-l-4 border-primary"
                     : "text-on-surface-variant dark:text-on-surface-variant/80 pl-0 hover:text-primary hover:pl-1"
                 }`}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.id === "dashboard" && isMentor && pendingRequestsCount > 0 && (
+                  <span className="bg-amber-500 text-black text-xs font-extrabold px-2 py-0.5 rounded-full">
+                    {pendingRequestsCount} pending
+                  </span>
+                )}
               </button>
             );
           })}
