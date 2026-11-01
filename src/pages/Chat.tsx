@@ -236,8 +236,10 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Kept as its own count so the first-message email still fires for the very
+    // first real message of the whole chat (independent of the post-confirmation reset).
     const realMessagesCount = messages.filter((m) => !m.is_system).length;
-    if (!newMessage.trim() || sending || realMessagesCount >= messageLimit) return;
+    if (!newMessage.trim() || sending || usedMessages >= messageLimit) return;
 
     setSending(true);
     const text = newMessage.trim();
@@ -346,6 +348,21 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
       alert("Failed to confirm session.");
     } else {
       setShowConfirmForm(false);
+
+      // Marker system message: starts the fresh 10-message allowance window.
+      // Never block or fail the confirmation if this insert fails — only log.
+      const { error: markerError } = await supabase
+        .from("chat_messages")
+        .insert({
+          booking_request_id: id,
+          sender_id: currentUser.id,
+          message: `Session time confirmed for ${confirmDate} at ${confirmTime}. You can send up to 10 more messages here if you need to sort out joining.`,
+          is_system: true,
+        });
+      if (markerError) {
+        console.error("Error inserting session-confirmed marker:", markerError);
+      }
+
       // Trigger confirmation email
       supabase.functions.invoke('send-email', {
         body: {
@@ -516,10 +533,26 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   const realMessagesCount = messages.filter((m) => !m.is_system).length;
   const isTimeConfirmed = request.status === "time_confirmed";
   const isCompleted = request.status === "completed";
-  // Message cap: 10 real messages before the session time is confirmed, then
-  // up to 20 total so users get 10 more to sort out joining problems.
-  const messageLimit = isTimeConfirmed ? 20 : 10;
-  const messageLimitReached = realMessagesCount >= messageLimit;
+  // Fresh allowance after confirmation: count only the non-system messages that
+  // come AFTER the last "Session time confirmed" marker (array position, not
+  // timestamps), with a cap of 10. Bookings confirmed before the marker existed
+  // have no marker, so they keep the old behaviour (all messages, cap 20).
+  const confirmationMarkerIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.is_system && typeof m.message === "string" && m.message.startsWith("Session time confirmed")) {
+        return i;
+      }
+    }
+    return -1;
+  })();
+  const hasConfirmationMarker = confirmationMarkerIndex !== -1;
+  const usedMessages =
+    isTimeConfirmed && hasConfirmationMarker
+      ? messages.slice(confirmationMarkerIndex + 1).filter((m) => !m.is_system).length
+      : realMessagesCount;
+  const messageLimit = isTimeConfirmed && !hasConfirmationMarker ? 20 : 10;
+  const messageLimitReached = usedMessages >= messageLimit;
   const showSessionBlock = isTimeConfirmed || isCompleted;
   const isPaid = isPaidMentor(request.mentors);
   // For paid mentors: requires payment if pending and not mentor view (FREE_MODE is bypassed)
@@ -891,7 +924,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
         {!isCompleted && (
           <div className="p-4 sm:p-6 bg-surface-container-low border-t border-white/5">
             <div className="flex items-center justify-between mb-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              <span>Messages Used: <span className={messageLimitReached ? 'text-red-500' : 'text-primary'}>{realMessagesCount}/{messageLimit}</span></span>
+              <span>Messages Used: <span className={messageLimitReached ? 'text-red-500' : 'text-primary'}>{usedMessages}/{messageLimit}</span></span>
               {isMentorView && !isTimeConfirmed && (
                  <button onClick={() => setShowConfirmForm(true)} className="sm:hidden text-primary underline">Confirm Time Now</button>
               )}
