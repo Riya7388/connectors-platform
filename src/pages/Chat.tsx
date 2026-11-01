@@ -237,7 +237,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const realMessagesCount = messages.filter((m) => !m.is_system).length;
-    if (!newMessage.trim() || sending || realMessagesCount >= 10 || request?.status === 'time_confirmed') return;
+    if (!newMessage.trim() || sending || realMessagesCount >= messageLimit) return;
 
     setSending(true);
     const text = newMessage.trim();
@@ -514,9 +514,12 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
   const isMentorView = currentUser.id === request.mentors?.user_id;
   const realMessagesCount = messages.filter((m) => !m.is_system).length;
-  const messageLimitReached = realMessagesCount >= 10;
   const isTimeConfirmed = request.status === "time_confirmed";
   const isCompleted = request.status === "completed";
+  // Message cap: 10 real messages before the session time is confirmed, then
+  // up to 20 total so users get 10 more to sort out joining problems.
+  const messageLimit = isTimeConfirmed ? 20 : 10;
+  const messageLimitReached = realMessagesCount >= messageLimit;
   const showSessionBlock = isTimeConfirmed || isCompleted;
   const isPaid = isPaidMentor(request.mentors);
   // For paid mentors: requires payment if pending and not mentor view (FREE_MODE is bypassed)
@@ -885,18 +888,20 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
         </div>
 
         {/* Input Area */}
-        {!showSessionBlock && (
+        {!isCompleted && (
           <div className="p-4 sm:p-6 bg-surface-container-low border-t border-white/5">
             <div className="flex items-center justify-between mb-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-              <span>Messages Used: <span className={messageLimitReached ? 'text-red-500' : 'text-primary'}>{realMessagesCount}/10</span></span>
-              {isMentorView && (
+              <span>Messages Used: <span className={messageLimitReached ? 'text-red-500' : 'text-primary'}>{realMessagesCount}/{messageLimit}</span></span>
+              {isMentorView && !isTimeConfirmed && (
                  <button onClick={() => setShowConfirmForm(true)} className="sm:hidden text-primary underline">Confirm Time Now</button>
               )}
             </div>
 
             {messageLimitReached ? (
               <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl text-sm font-medium text-center">
-                You've reached the scheduling message limit. Please confirm a session time to continue, or start a new request if you need more time.
+                {isTimeConfirmed
+                  ? "You've reached the message limit for this session. Please contact support if you still can't connect."
+                  : "You've reached the scheduling message limit. Please confirm a session time to continue, or start a new request if you need more time."}
               </div>
             ) : (
               <form onSubmit={handleSendMessage} className="flex gap-3">
