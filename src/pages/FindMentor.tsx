@@ -560,7 +560,7 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
     return count;
   }, [selectedColleges, selectedBranches, verifiedOnly, selectedExpertise, selectedPriceRange, freeIntroOnly, selectedLanguages, selectedRating]);
 
-  const filteredMentors = useMemo(() => {
+  const { visible: filteredMentors, total: totalFilteredMentors } = useMemo(() => {
     const filtered = mentors.filter((m) => {
       // Text search — matches name, college, branch
       const term = searchTerm.toLowerCase();
@@ -661,9 +661,11 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
       );
     });
 
-    // Pagination
-    const startIdx = (currentPage - 1) * pageSize;
-    return filtered.slice(startIdx, startIdx + pageSize);
+    // Cumulative "Load more": show everything up to currentPage * pageSize,
+    // so clicking Load more appends the next page below the existing cards.
+    const total = filtered.length;
+    const visible = filtered.slice(0, currentPage * pageSize);
+    return { visible, total };
   }, [
     mentors,
     searchTerm,
@@ -1223,6 +1225,23 @@ const FindMentor: React.FC<FindMentorProps> = ({ setActiveTab }) => {
                   onClick={() => setActiveTab("mentor-profile/" + mentor.id)}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Cumulative pagination: Showing X of Y + Load more */}
+          {!loading && !error && totalFilteredMentors > 0 && (
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <p className="text-sm text-on-surface-variant">
+                Showing {filteredMentors.length} of {totalFilteredMentors} mentors
+              </p>
+              {filteredMentors.length < totalFilteredMentors && (
+                <button
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition"
+                >
+                  Load more
+                </button>
+              )}
             </div>
           )}
 
