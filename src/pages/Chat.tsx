@@ -25,6 +25,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   const [confirming, setConfirming] = useState(false);
 
   const [meetLinkInput, setMeetLinkInput] = useState("");
+  const [meetLinkError, setMeetLinkError] = useState("");
   const [savingLink, setSavingLink] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   
@@ -425,14 +426,32 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
   const handleSaveMeetLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!meetLinkInput.trim()) return;
+    const trimmed = meetLinkInput.trim();
+    if (!trimmed) return;
+
+    // Accept links pasted without a scheme (e.g. meet.google.com/abc-defg-hij).
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+    let normalized: string;
+    try {
+      const parsed = new URL(withScheme);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error('Unsupported protocol');
+      }
+      normalized = parsed.href;
+    } catch {
+      setMeetLinkError("Please paste a valid link, e.g. meet.google.com/abc-defg-hij");
+      return;
+    }
+
+    setMeetLinkError("");
     setSavingLink(true);
     const { error } = await supabase
       .from('booking_requests')
-      .update({ meet_link: meetLinkInput.trim() })
+      .update({ meet_link: normalized })
       .eq('id', id);
     if (!error) {
-      setRequest((prev: any) => ({ ...prev, meet_link: meetLinkInput.trim() }));
+      setRequest((prev: any) => ({ ...prev, meet_link: normalized }));
     } else {
       alert("Failed to save link.");
     }
@@ -732,14 +751,20 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
                           <div className="relative">
                             <LinkIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                             <input 
-                              type="url" 
+                              type="text" 
                               required 
+                              inputMode="url"
+                              autoCapitalize="none"
+                              autoCorrect="off"
                               placeholder="Paste your Meet link here..." 
                               value={meetLinkInput} 
-                              onChange={e => setMeetLinkInput(e.target.value)}
+                              onChange={e => { setMeetLinkInput(e.target.value); if (meetLinkError) setMeetLinkError(""); }}
                               className="w-full bg-surface-container border border-white/10 rounded-xl pl-10 pr-3 py-2 text-sm text-on-surface focus:border-primary/50 outline-none" 
                             />
                           </div>
+                          {meetLinkError && (
+                            <p className="mt-2 text-xs text-red-400">{meetLinkError}</p>
+                          )}
                         </div>
                         <button type="submit" disabled={savingLink} className="sm:self-end px-4 py-2 bg-primary text-on-primary-fixed rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all">
                           {savingLink ? "Saving..." : "Save Link"}
