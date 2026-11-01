@@ -46,6 +46,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -218,7 +219,12 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
   }, [id, setActiveTab]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll ONLY the messages container — scrollIntoView here would also scroll
+    // the window and pull the page footer into view.
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   const markMessagesAsRead = async (msgs: any[], userId: string) => {
@@ -868,7 +874,7 @@ export const Chat: React.FC<ChatProps> = ({ id, setActiveTab }) => {
         )}
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {request.initial_message && (
             <div className="flex justify-center mb-8">
               <div className="bg-surface-container-low border border-white/5 rounded-2xl p-4 max-w-lg text-center text-sm text-on-surface-variant italic">

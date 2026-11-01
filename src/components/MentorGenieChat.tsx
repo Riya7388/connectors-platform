@@ -42,6 +42,7 @@ export const MentorGenieChat: React.FC<MentorGenieChatProps> = ({ setActiveTab }
   const [sessionId, setSessionId] = useState("");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // 1. Generate/Retrieve session ID for anonymous rate limiting
   useEffect(() => {
@@ -77,8 +78,14 @@ export const MentorGenieChat: React.FC<MentorGenieChatProps> = ({ setActiveTab }
     if (messages.length > 0) {
       sessionStorage.setItem("mentor_genie_history", JSON.stringify(messages));
     }
-    // Scroll to bottom
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll ONLY this panel's messages container, and only when open.
+    // scrollIntoView here would scroll the window on any route, since this
+    // component is mounted globally in App.tsx.
+    if (!isOpen) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages, isOpen]);
 
   const handleNavigateToProfile = (mentorId: string) => {
@@ -212,7 +219,7 @@ export const MentorGenieChat: React.FC<MentorGenieChatProps> = ({ setActiveTab }
             </div>
 
             {/* Message Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-surface/80 dark:bg-surface-dim/90">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-surface/80 dark:bg-surface-dim/90">
               {messages.map((msg, index) => (
                 <div
                   key={index}

@@ -64,6 +64,11 @@ function App() {
     }
   }, [darkMode]);
 
+  // Reset window scroll on page change, so a new route opens at the top
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [activeTab]);
+
   const checkAdminStatus = async (userId?: string) => {
     if (!userId) {
       setIsAdmin(false);
