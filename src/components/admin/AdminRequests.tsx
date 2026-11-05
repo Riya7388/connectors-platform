@@ -19,6 +19,7 @@ import {
   Flame,
   ArrowUpDown
 } from "lucide-react";
+import { AdminFollowUps } from "./AdminFollowUps";
 
 export interface AdminBookingRequest {
   id: string;
@@ -459,6 +460,8 @@ export const AdminRequests: React.FC = () => {
           <p className="text-2xl font-extrabold text-rose-400">{totalStats.highlightedMentors}</p>
         </div>
       </div>
+
+      <AdminFollowUps />
 
       {/* ===================================================================== */}
       {/* SECTION 1: PER-MENTOR SUMMARY */}

@@ -108,6 +108,8 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
   const [selectedDuration, setSelectedDuration] = useState<string>("30");
   const [connectLoading, setConnectLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [connectPhone, setConnectPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   // In-app notification state (replaces alerts)
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -291,6 +293,37 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       if (durationOpts.length > 0) {
         setSelectedDuration(durationOpts[0].mins);
       }
+
+      // Prefill the WhatsApp number once, silently ignoring any errors.
+      setPhoneError(null);
+      try {
+        let prefilledPhone = "";
+        const { data: profileData } = await supabase
+          .from("student_profiles")
+          .select("phone")
+          .eq("user_id", currentUser.id)
+          .maybeSingle();
+        prefilledPhone = profileData?.phone?.trim() || "";
+
+        if (!prefilledPhone) {
+          const { data: regRows } = await supabase
+            .from("session_registrations")
+            .select("phone")
+            .eq("user_id", currentUser.id)
+            .not("phone", "is", null)
+            .limit(1);
+          prefilledPhone = regRows?.[0]?.phone?.trim() || "";
+        }
+
+        if (!prefilledPhone) {
+          prefilledPhone = currentUser.user_metadata?.phone || "";
+        }
+
+        setConnectPhone(prefilledPhone);
+      } catch {
+        // Silent: prefill is best-effort only.
+      }
+
       setShowConnectModal(true);
     }
   };
@@ -298,7 +331,34 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
   const handleSendRequest = async () => {
     if (!currentUser || !mentor) return;
 
+    // Validate the WhatsApp number before sending anything.
+    const cleanedPhone = connectPhone.replace(/\D/g, "");
+    if (cleanedPhone.length < 10) {
+      setPhoneError("Please enter a valid 10-digit WhatsApp number.");
+      return;
+    }
+
     setConnectLoading(true);
+
+    // Save the number first; do not send the request if this fails.
+    const { error: phoneSaveError } = await supabase
+      .from("student_profiles")
+      .upsert(
+        {
+          user_id: currentUser.id,
+          phone: connectPhone.trim(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (phoneSaveError) {
+      console.error("Error saving student phone:", phoneSaveError);
+      setConnectLoading(false);
+      setNotification({ message: "Could not save your number. Please try again.", type: "error" });
+      return;
+    }
+
     const payload: any = {
       student_id: currentUser.id,
       mentor_id: mentor.id,
@@ -824,7 +884,7 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
       {/* 6. Connect Modal */}
       {showConnectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] rounded-3xl w-full max-w-md p-6 sm:p-8 relative shadow-2xl animate-scale-in">
+          <div className="bg-[#1C1C21] border border-[rgba(255,255,255,0.12)] rounded-3xl w-full max-w-md p-6 sm:p-8 relative shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowConnectModal(false)}
               className="absolute top-6 right-6 text-[#A1A1AA] hover:text-white transition-colors"
@@ -874,6 +934,31 @@ export const MentorProfile: React.FC<MentorProfileProps> = ({ id, setActiveTab }
                 placeholder={`Hi ${firstName}, I'd love help with study planning and mock test strategies...`}
                 className="w-full bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-xl p-3.5 text-white placeholder:text-[#71717A] text-sm focus:outline-none focus:border-purple-500/50 min-h-[100px] resize-none"
               />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-[#71717A] mb-2 uppercase tracking-wider">
+                WhatsApp Number *
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                required
+                value={connectPhone}
+                onChange={(e) => {
+                  setConnectPhone(e.target.value);
+                  if (phoneError) setPhoneError(null);
+                }}
+                placeholder="98765 43210"
+                className="w-full bg-[#141417] border border-[rgba(255,255,255,0.08)] rounded-xl p-3.5 text-white placeholder:text-[#71717A] text-sm focus:outline-none focus:border-purple-500/50"
+              />
+              <p className="text-[11px] text-[#71717A] mt-2 leading-relaxed">
+                Used for mentor replies and session reminders. Our team may WhatsApp or call you to remind you about your session. Your number is never shown to mentors.
+              </p>
+              {phoneError && (
+                <p className="text-[11px] text-red-400 mt-2">{phoneError}</p>
+              )}
             </div>
 
             <button
