@@ -17,7 +17,8 @@ import {
   ChevronUp,
   Inbox,
   Flame,
-  ArrowUpDown
+  ArrowUpDown,
+  Phone
 } from "lucide-react";
 import { AdminFollowUps } from "./AdminFollowUps";
 
@@ -40,6 +41,7 @@ export interface AdminBookingRequest {
   student_id: string;
   student_email: string | null;
   student_name: string | null;
+  student_phone?: string | null;
 }
 
 interface MentorSummary {
@@ -91,6 +93,13 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// Digits only; a bare 10-digit number gets the 91 country code.
+function normalizePhone(raw: string | null | undefined): string {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.length === 10 ? `91${digits}` : digits;
 }
 
 export const AdminRequests: React.FC = () => {
@@ -338,7 +347,11 @@ export const AdminRequests: React.FC = () => {
         const matchesEmail = (r.student_email || "").toLowerCase().includes(q);
         const matchesMessage = (r.initial_message || "").toLowerCase().includes(q);
         const matchesStatus = (r.status || "").toLowerCase().includes(q);
-        return matchesMentor || matchesStudent || matchesEmail || matchesMessage || matchesStatus;
+        const searchDigits = searchTerm.replace(/\D/g, "");
+        const matchesPhone =
+          searchDigits.length > 0 &&
+          (r.student_phone || "").replace(/\D/g, "").includes(searchDigits);
+        return matchesMentor || matchesStudent || matchesEmail || matchesMessage || matchesStatus || matchesPhone;
       }
 
       return true;
@@ -754,6 +767,27 @@ export const AdminRequests: React.FC = () => {
                               </p>
                             ) : (
                               <p className="text-[10px] text-[#71717A] italic">Email hidden</p>
+                            )}
+                            {normalizePhone(req.student_phone) ? (
+                              <p className="text-[11px] text-[#A1A1AA] flex items-center gap-1.5">
+                                <Phone size={11} className="text-[#71717A]" />
+                                <a
+                                  href={`tel:+${normalizePhone(req.student_phone)}`}
+                                  className="hover:text-white transition-colors"
+                                >
+                                  {req.student_phone}
+                                </a>
+                                <a
+                                  href={`https://wa.me/${normalizePhone(req.student_phone)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] font-semibold text-primary hover:underline"
+                                >
+                                  WhatsApp
+                                </a>
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-[#71717A] italic">No number</p>
                             )}
                           </div>
                         </td>
