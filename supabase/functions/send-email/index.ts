@@ -179,7 +179,8 @@ serve(async (req) => {
       meet_link, 
       amount,
       to: directTo,
-      data
+      data,
+      delay_ms
     } = body
 
     // Helper to get user email and name
@@ -354,25 +355,53 @@ serve(async (req) => {
       throw new Error(`Unknown email type: ${type}`)
     }
 
+    // Optional pacing delay, supplied by the bulk workshop mailers so requests
+    // stay under Resend's 2 requests/second limit. Ignored if not a number.
+    if (typeof delay_ms === 'number' && Number.isFinite(delay_ms)) {
+      const clampedDelayMs = Math.min(Math.max(delay_ms, 0), 100000)
+      await new Promise((resolve) => setTimeout(resolve, clampedDelayMs))
+    }
+
     // Call Resend API
-    const res = await fetch('https://api.resend.com/emails', {
+    const resendBody = JSON.stringify({
+      from: FROM_EMAIL,
+      to,
+      subject,
+      html
+    })
+
+    const resendRequest = () => fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${RESEND_API_KEY}`
       },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to,
-        subject,
-        html
-      })
+      body: resendBody
     })
+
+    let res = await resendRequest()
+
+    // Resend rate-limits at 2 requests/second (429). Back off and retry a few
+    // times, honouring retry-after when present, otherwise ~1.5s + jitter.
+    const MAX_RESEND_RETRIES = 3
+    for (let attempt = 0; attempt < MAX_RESEND_RETRIES && res.status === 429; attempt++) {
+      const retryAfterHeader = res.headers.get('retry-after')
+      const retryAfterSeconds = retryAfterHeader === null ? NaN : Number(retryAfterHeader)
+      const baseWaitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+        ? retryAfterSeconds * 1000
+        : 1500
+      const jitterMs = Math.floor(Math.random() * 501)
+
+      await new Promise((resolve) => setTimeout(resolve, baseWaitMs + jitterMs))
+      res = await resendRequest()
+    }
 
     const resData = await res.json()
 
     if (!res.ok) {
-      console.error('Resend API Error:', resData)
+      // Log status + Resend error name only (never the email body).
+      const resendErrorName = resData?.name ?? resData?.error?.name ?? 'unknown'
+      console.error(`Resend API Error: status=${res.status} name=${resendErrorName}`)
       // We don't throw to avoid breaking the client flow, just log it
     }
 
